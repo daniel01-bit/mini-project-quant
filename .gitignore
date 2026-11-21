@@ -1,0 +1,41 @@
+# Python Bytecode & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Sensitive API Keys & Local Broker Configurations (ห้ามอัปโหลดขึ้น GitHub เด็ดขาด)
+broker_config.json
+.env
+*.secret
+
+# Local SQLite Cache, Runtime State & Logs
+*.db
+*.sqlite3
+hermes_bus.json
+ui_state.json
+logs/
+output_backtest/
+data/
+memories/
+model/
+docs/
+
+# Generated PDFs & Legacy Prototype Scripts (Clean Release v7.0 Final)
+*.pdf
+agent.py
+quant_agent.py
+quant_mcpserver_v2.py
+backtest_report.py
+generate_feedback_pdf.py
+generate_phase2_report_pdf.py
+generate_user_manual_pdf.py
+session-save.md
+
+# OS & Editor Artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
