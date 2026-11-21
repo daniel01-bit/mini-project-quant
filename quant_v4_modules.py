@@ -273,8 +273,10 @@ def fetch_fundamentals_and_sentiment(ticker: str) -> dict:
     sentiment_score = 0
     top_headline = "ไม่มีข่าวสำคัญในรอบวัน"
 
-    pos_words = {"beat", "surge", "jump", "upgrade", "record", "growth", "bull", "buy", "strong", "gain", "ai", "profit", "outperform", "rally"}
-    neg_words = {"miss", "drop", "fall", "downgrade", "cut", "lawsuit", "bear", "sell", "weak", "loss", "crash", "risk", "warn", "decline"}
+    import re
+
+    pos_words = {"beat", "beats", "surge", "surges", "jump", "jumps", "upgrade", "upgraded", "record", "growth", "bullish", "outperform", "rally", "rallies", "profit", "profits", "gain", "gains", "strong"}
+    neg_words = {"miss", "misses", "drop", "drops", "fall", "falls", "downgrade", "downgraded", "cut", "cuts", "lawsuit", "bearish", "selloff", "weak", "loss", "losses", "crash", "bubble", "risk", "risks", "warn", "warns", "warning", "decline", "declines", "slump"}
 
     try:
         tk_obj = yf.Ticker(ticker)
@@ -288,13 +290,11 @@ def fetch_fundamentals_and_sentiment(ticker: str) -> dict:
                 title = item.get("title") or content.get("title") or ""
                 if title:
                     titles.append(title)
-                    low_t = title.lower()
-                    for pw in pos_words:
-                        if pw in low_t:
-                            score_acc += 25
-                    for nw in neg_words:
-                        if nw in low_t:
-                            score_acc -= 25
+                    tokens = set(re.findall(r"[a-z]+", title.lower()))
+                    pos_hits = len(tokens & pos_words)
+                    neg_hits = len(tokens & neg_words)
+                    # ใช้ Word-Boundary Matching และให้น้ำหนักคำเตือน/ความเสี่ยงมากกว่าเพื่อกัน False Positive
+                    score_acc += (pos_hits * 20) - (neg_hits * 25)
             if titles:
                 top_headline = titles[0][:85]
                 sentiment_score = int(np.clip(score_acc, -100, 100))

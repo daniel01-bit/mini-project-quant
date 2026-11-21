@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-quant_gui.py — AI Quant Workbench v4.0 (VS Code + TradingView Single-Screen Template & Hermes 2-Way Co-Pilot)
+quant_gui.py — AI Quant Workbench v7.0 (VS Code + TradingView Single-Screen Template & Hermes 2-Way Co-Pilot)
 โครงสร้างหน้าจอแบบ Single-Screen Workbench (ไม่ต้องสลับแท็บไปมา):
   • ด้านบนสุด (Top Bar + 4 KPI Cards): สรุปสัญญาณ, คะแนน Quant Score, ML Win Prob%, POC/VWAP, VaR95%, ดัชนี VIX และข่าวล่าสุด
   • ด้านซ้าย (Watchlist Explorer): รายชื่อหุ้นที่สแกน คลิกเพียงครั้งเดียวอัปเดตทั้งการ์ด กราฟ และใบคำสั่งซื้อขายทันที
@@ -372,10 +372,10 @@ class WordStyleInputEnhancer:
         return None
 
 
-class QuantWorkbenchV4:
+class QuantWorkbench:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("AI Quant Workbench v7.0 Final — Production & Portfolio Standard | 4 Core Strategies, Cross-Sectional, WFO Gate & Circuit Breaker")
+        self.root.title("AI Quant Workbench v7.0 — Institutional Research, Cross-Sectional Alpha & Automated Execution")
         self.root.geometry("1480x900")
         self.root.minsize(1220, 760)
 
@@ -416,6 +416,7 @@ class QuantWorkbenchV4:
         self._saved_right_visible: bool = True
         self._saved_dock_visible: bool = True
         self.draw_toolbar_visible: bool = False
+        self.chart_toolbar_visible: bool = False
         self._settings_win = None
         self.toaster = mui.MacToastManager(self.root)
         self.drawing_mgr = cdt.ChartDrawingManager(
@@ -1289,7 +1290,7 @@ class QuantWorkbenchV4:
 
         self.dock_tabs_meta = [
             ("พอร์ต & คำสั่ง", "1. พอร์ตจริง & ส่งคำสั่ง Semi-Auto", 0, "จัดการพอร์ตจำลอง/พอร์ตจริง ส่งคำสั่งซื้อขาย Semi-Auto และดูประวัติคำสั่งล่าสุด"),
-            ("จัดพอร์ต & ข่าว", "2. ตารางจัดพอร์ต v4 • ML • ข่าว", 1, "ตารางสัดส่วนพอร์ตเหมาะสม v4.0, โอกาสชนะ ML Win Prob%, Walk-Forward และพาดหัวข่าวล่าสุด"),
+            ("จัดพอร์ต & ข่าว", "2. ตารางจัดพอร์ต v4 • ML • ข่าว", 1, "ตารางสัดส่วนพอร์ตเหมาะสม v7.0, โอกาสชนะ ML Win Prob%, Walk-Forward และพาดหัวข่าวล่าสุด"),
             ("ประวัติเทรด", "3. ประวัติเทรดรายไม้ (Trade Log)", 2, "รายละเอียดจุดเข้าซื้อ-ขายออกรายไม้ วันถือครอง กำไร/ขาดทุนสุทธิ และสาเหตุการขายออก"),
             ("เทียบกลยุทธ์", "4. ตารางเทียบทุกกลยุทธ์", 3, "เปรียบเทียบผลตอบแทน Return%, MaxDD%, Sharpe, Calmar, Win Rate และ Profit Factor ของทุกกลยุทธ์"),
         ]
@@ -1702,7 +1703,7 @@ class QuantWorkbenchV4:
 
     def manual_sync_hermes(self):
         acc = bb.get_account_summary()
-        res = hb.sync_to_hermes_memory(self.scan_rows_list, acc, extra_note="ซิงก์ข้อมูลพอร์ตและผลสแกน v4.0 เข้า MEMORY.md ของ Hermes แล้ว")
+        res = hb.sync_to_hermes_memory(self.scan_rows_list, acc, extra_note="ซิงก์ข้อมูลพอร์ตและผลสแกน v7.0 เข้า MEMORY.md ของ Hermes แล้ว")
         self._refresh_hermes_chat_box()
         self.log(f"ซิงก์ MEMORY.md เข้า Hermes Agent สำเร็จ ({len(res['paths'])} ไฟล์)", "ok")
 
@@ -1813,7 +1814,7 @@ class QuantWorkbenchV4:
 
     def _run_worker(self, tickers: list[str], period: str, capital: float, risk_pct: float, force_ref: bool, use_ai: bool):
         n_total = len(tickers)
-        self.log(f"เริ่มสแกน v5.0 ({n_total} สินทรัพย์): {', '.join(tickers)} | จำลอง Dynamic Slippage + เทียบ S&P500 (^GSPC)", "info")
+        self.log(f"เริ่มสแกน v7.0 ({n_total} สินทรัพย์): {', '.join(tickers)} | จำลอง Dynamic Slippage + เทียบ S&P500 (^GSPC)", "info")
 
         bm_close = qv5.get_benchmark_close(period, "^GSPC")
         new_cache = {}
@@ -1833,7 +1834,7 @@ class QuantWorkbenchV4:
                 src_txt = "SQLite Cache ⚡" if from_cache else "yfinance Live 🌐"
                 self.log(f"[{idx}/{n_total}] {t}: {len(close)} วัน ({src_txt})", "info")
 
-                self.msg_queue.put(("status", f"[{idx}/{n_total}] คำนวณ v6.0 (4 กลยุทธ์หลัก + Backtest ทั้ง 6 ปุ่มโหมด) สำหรับ {t} ...", base_prog + 50))
+                self.msg_queue.put(("status", f"[{idx}/{n_total}] คำนวณ v7.0 (4 กลยุทธ์หลัก + Backtest ทั้ง 6 ปุ่มโหมด) สำหรับ {t} ...", base_prog + 50))
                 ind = be.compute_indicators(ohlcv)
                 signals, atr_stop_series, tuned_params = be.generate_signals(
                     close,
@@ -1948,7 +1949,7 @@ class QuantWorkbenchV4:
             except Exception as e:
                 self.log(f"[Error] {t}: {e}", "err")
 
-        # คำนวณสัดส่วนพอร์ตรวมระดับกองทุน (Portfolio Optimizer v4.0)
+        # คำนวณสัดส่วนพอร์ตรวมระดับกองทุน (Portfolio Optimizer v7.0)
         if scan_list:
             scan_list = qv4.optimize_portfolio_weights(scan_list, close_map, total_capital=capital)
             for s in scan_list:
@@ -1975,9 +1976,9 @@ class QuantWorkbenchV4:
 
         # ซิงก์เข้า MEMORY.md ของ Hermes Agent อัตโนมัติ
         acc = bb.get_account_summary({s["ticker"]: float(s["close"]) for s in scan_list})
-        hb.sync_to_hermes_memory(scan_list, acc, extra_note=f"อัปเดตผลสแกน v4.0 ({len(scan_list)} สินทรัพย์) พร้อมจัดพอร์ตใหม่แล้ว")
+        hb.sync_to_hermes_memory(scan_list, acc, extra_note=f"อัปเดตผลสแกน v7.0 ({len(scan_list)} สินทรัพย์) พร้อมจัดพอร์ตใหม่แล้ว")
 
-        self.msg_queue.put(("status", f"✅ วิเคราะห์ v4.0 + จัดพอร์ต + ซิงก์ Hermes Agent ครบทั้ง {len(scan_list)} สินทรัพย์เรียบร้อย!", 100.0))
+        self.msg_queue.put(("status", f"✅ วิเคราะห์ v7.0 + จัดพอร์ต + ซิงก์ Hermes Agent ครบทั้ง {len(scan_list)} สินทรัพย์เรียบร้อย!", 100.0))
         self.msg_queue.put(("all_done",))
 
     # ==========================================
@@ -2056,30 +2057,67 @@ class QuantWorkbenchV4:
         if s:
             qv4.compute_sniper_and_tp_levels(s)
             self._populate_order_ticket_from_scan(s)
-            self.kpi_vars[0][0].set(f"🎯 {ticker} • {s['best_strategy']} ({s.get('sniper_status', '')})")
+
+            act_short = str(s.get("action", "WAIT")).split()[0]
+            score_v = float(s.get("quant_score", 0.0))
+            grade_v = str(s.get("grade", "-"))
+            close_v = float(s.get("close", 0.0))
+            stop_v = float(s.get("stop_price", 0.0))
+            tp1_v = float(s.get("tp1_price", 0.0))
+            tp2_v = float(s.get("tp2_price", 0.0))
+
+            # การ์ดที่ 1: สัญญาณหลัก + ราคาปิด & คะแนน Quant Score
+            self.kpi_vars[0][0].set(f"SIGNAL • {ticker} ({s['best_strategy']})")
+            self.kpi_value_vars[0].set(f"{act_short}  {score_v:.0f}({grade_v})")
+            self.kpi_sub_vars[0].set(f"Close {close_v:,.2f} | Stop {stop_v:,.2f}")
             self.kpi_vars[0][1].set(
-                f"Close: {float(s['close']):,.2f}  |  {s['action']}  |  Score: {float(s['quant_score']):.0f}({s['grade']})\n"
-                f"Stop: {float(s['stop_price']):,.2f} | TP1(1.5R): {float(s.get('tp1_price',0)):,.2f} | TP2(3R): {float(s.get('tp2_price',0)):,.2f}"
+                f"Close: {close_v:,.2f}  |  {s['action']}  |  Score: {score_v:.0f}({grade_v})\n"
+                f"Stop: {stop_v:,.2f} | TP1(1.5R): {tp1_v:,.2f} | TP2(3R): {tp2_v:,.2f}"
             )
 
-            gate_st = s.get("wfo_gate_status", "-")
-            self.kpi_vars[1][0].set(f"🤖 Explainable AI (XAI) & Rolling WFO Gate: [{gate_st}] ({ticker})")
+            # การ์ดที่ 2: ML Win Prob + Rolling Walk-Forward Gate
+            gate_st = str(s.get("wfo_gate_status", "-"))
+            ml_p = float(s.get("ml_win_prob_pct", 50.0))
+            wfo_shp = float(s.get("wfo_oos_sharpe", 0.0))
+            sortino_v = float(s.get("sortino", 0.0))
+            alpha_v = float(s.get("alpha_pct", 0.0))
+            self.kpi_vars[1][0].set(f"ML WIN PROB • WFO [{gate_st}]")
+            self.kpi_value_vars[1].set(f"{ml_p:.1f}%")
+            self.kpi_sub_vars[1].set(f"OOS Shp {wfo_shp:.2f} | Alpha {alpha_v:+.1f}%")
             self.kpi_vars[1][1].set(
-                f"ML Win Prob: {float(s.get('ml_win_prob_pct', 50)):.1f}%  |  Rolling OOS Shp: {float(s.get('wfo_oos_sharpe', 0.0)):.2f}  |  Sortino: {float(s.get('sortino', 1.2)):.2f}\n"
-                f"XAI หนุนขึ้น: {s.get('top_bullish_driver', 'Trend/Momentum')}  |  Alpha(α): {float(s.get('alpha_pct', 0.0)):+.1f}%"
+                f"ML Win Prob: {ml_p:.1f}%  |  Rolling OOS Shp: {wfo_shp:.2f}  |  Sortino: {sortino_v:.2f}\n"
+                f"XAI Top Driver: {s.get('top_bullish_driver', 'Trend/Momentum')}  |  Alpha(α): {alpha_v:+.1f}%"
             )
 
-            self.kpi_vars[2][0].set(f"🏛 Institutional Levels & Monte Carlo ({ticker})")
+            # การ์ดที่ 3: Daily VaR 95% + Institutional POC / VWAP20
+            var95_v = float(s.get("var_95_pct", 0.0))
+            poc_v = float(s.get("poc_price", 0.0))
+            vwap_v = float(s.get("vwap20", 0.0))
+            mc_win = float(s.get("mc_prob_profit_pct", 50.0))
+            self.kpi_vars[2][0].set(f"DAILY VaR 95% • {ticker}")
+            self.kpi_value_vars[2].set(f"{var95_v:.2f}%")
+            self.kpi_sub_vars[2].set(f"POC {poc_v:,.2f} | MC 1Y {mc_win:.0f}%")
             self.kpi_vars[2][1].set(
-                f"POC: {float(s.get('poc_price', 0)):,.2f}  |  VWAP20: {float(s.get('vwap20', 0)):,.2f}\n"
-                f"Daily VaR95%: {float(s.get('var_95_pct', 0)):.2f}%  |  MC 1Y WinProb: {float(s.get('mc_prob_profit_pct', 50)):.0f}%"
+                f"POC: {poc_v:,.2f}  |  VWAP20: {vwap_v:,.2f}\n"
+                f"Daily VaR95%: {var95_v:.2f}%  |  MC 1Y WinProb: {mc_win:.0f}%"
             )
 
-            self.kpi_vars[3][0].set(f"🌐 Macro VIX • Portfolio v4 • News ({ticker})")
+            # การ์ดที่ 4: Macro VIX + สัดส่วนพอร์ตที่แนะนำ
+            vix_v = float(s.get("macro_vix", 18.5))
+            opt_pct = float(s.get("opt_alloc_pct", 0.0))
+            opt_amt = float(s.get("opt_alloc_amount", 0.0))
+            self.kpi_vars[3][0].set(f"MACRO VIX • PORTFOLIO ALLOC")
+            self.kpi_value_vars[3].set(f"VIX {vix_v:.1f}")
+            self.kpi_sub_vars[3].set(f"Alloc {opt_pct:.1f}% (${opt_amt:,.0f})")
             self.kpi_vars[3][1].set(
-                f"{s.get('macro_vix_label', 'VIX Normal')}  |  พอร์ตv4: {float(s.get('opt_alloc_pct', 0)):.1f}% (${float(s.get('opt_alloc_amount', 0)):,.0f})\n"
+                f"{s.get('macro_vix_label', 'VIX Normal')}  |  Alloc: {opt_pct:.1f}% (${opt_amt:,.0f})\n"
                 f"News: {s.get('news_sentiment_label', 'Neutral')} — {str(s.get('top_headline', ''))[:42]}"
             )
+
+            # ปรับสีตัวเลขหลักบนการ์ดที่ 1 ตามสัญญาณ BUY/HOLD/SELL/WAIT
+            if hasattr(self, "kpi_value_labels") and len(self.kpi_value_labels) >= 1:
+                sig_col = "#30D158" if "BUY" in act_short or "HOLD" in act_short else ("#FF453A" if "SELL" in act_short else "#9CDCFE")
+                self.kpi_value_labels[0].config(fg=sig_col)
 
         self.redraw_interactive_chart()
 
@@ -2126,7 +2164,7 @@ class QuantWorkbenchV4:
             if self.selected_ticker in self.ticker_cache and "six_modes" in self.ticker_cache[self.selected_ticker]:
                 m4 = self.ticker_cache[self.selected_ticker]["six_modes"]["mode_4_risk_parity"]
                 m4_stat = f" | Backtest ปุ่ม 4: Ret {m4['full']['total_ret_pct']:+.1f}% (OOS {m4['oos_ret_pct']:+.1f}%, Shp {m4['full']['sharpe']:.2f})"
-            ax_bar.set_title(f"⚖ สัดส่วนพอร์ตรวม v6.0{m4_stat}", fontsize=9.2, weight="bold")
+            ax_bar.set_title(f"⚖ สัดส่วนพอร์ตรวม v7.0{m4_stat}", fontsize=9.2, weight="bold")
             ax_bar.set_xlabel("Portfolio Allocation (%)")
 
             if len(self.ticker_cache) >= 2:
@@ -2411,7 +2449,7 @@ class QuantWorkbenchV4:
                 })
 
         if not rebal_orders:
-            self._toast_info("พอร์ตสมดุลแล้ว", "สัดส่วนพอร์ตปัจจุบันใกล้เคียงกับสัดส่วนที่เหมาะสม (Portfolio Optimizer v4.0) แล้ว ไม่จำเป็นต้องปรับเพิ่มครับ")
+            self._toast_info("พอร์ตสมดุลแล้ว", "สัดส่วนพอร์ตปัจจุบันใกล้เคียงกับสัดส่วนที่เหมาะสม (Portfolio Optimizer v7.0) แล้ว ไม่จำเป็นต้องปรับเพิ่มครับ")
             return
 
         summary_lines = [
@@ -2942,7 +2980,7 @@ class QuantWorkbenchV4:
                     if res["ok"]:
                         self.log(f"🛡 [Auto-Guardian SL] คัทลอสอัตโนมัติ {sym} ({qty:.4f}) @ {cur_p:,.2f} (หลุด Stop {stop_p:,.2f})", "warn")
                 elif avg_p > 0 and cur_p >= avg_p * 1.08 and stop_p < avg_p:
-                    # ระบบ Break-Even Profit Lock v6.0: แบ่งขายทำกำไร 50% ที่ TP1 และย้าย Stop-Loss ของที่เหลือขึ้นมาบังหน้าทุนอัตโนมัติ
+                    # ระบบ Break-Even Profit Lock v7.0: แบ่งขายทำกำไร 50% ที่ TP1 และย้าย Stop-Loss ของที่เหลือขึ้นมาบังหน้าทุนอัตโนมัติ
                     be_stop = round(avg_p * 1.002, 2)
                     res = bb.execute_confirmed_order(sym, "SELL", qty * 0.5, cur_p, be_stop)
                     if res["ok"]:
@@ -3091,7 +3129,7 @@ class QuantWorkbenchV4:
             self._toast_error("ข้อผิดพลาด", "กรุณากรอกจำนวนและราคาเป็นตัวเลข")
             return
 
-        # ตรวจสอบ Pre-Trade Institutional Risk Gate v5.0 ก่อนยืนยันคำสั่ง
+        # ตรวจสอบ Pre-Trade Institutional Risk Gate v7.0 ก่อนยืนยันคำสั่ง
         acc = bb.get_account_summary()
         vix_now = float(qv4.get_macro_vix_regime().get("vix", 18.5))
         gate = qv5.check_pre_trade_risk_gate(
@@ -3105,7 +3143,7 @@ class QuantWorkbenchV4:
         )
         warn_block = ""
         if gate["warnings"]:
-            warn_block = "\n\n⚠️ แจ้งเตือนจากระบบ Pre-Trade Risk Gate v5.0:\n• " + "\n• ".join(gate["warnings"])
+            warn_block = "\n\n⚠️ แจ้งเตือนจากระบบ Pre-Trade Risk Gate v7.0:\n• " + "\n• ".join(gate["warnings"])
 
         if not messagebox.askyesno(
             "ยืนยันคำสั่งซื้อขาย (Semi-Auto Confirm + Pre-Trade Risk Gate)",
@@ -3240,7 +3278,7 @@ class QuantWorkbenchV4:
                 pass
         if self.scan_rows_list:
             self._populate_all_tables()
-            self.log("โหลดข้อมูล v4.0 ล่าสุดจาก Cache/CSV พร้อมใช้งาน (กด '▶ รันสแกน' เพื่อโหลดกราฟครบทุกโหมด)", "ok")
+            self.log("โหลดข้อมูล v7.0 ล่าสุดจาก Cache/CSV พร้อมใช้งาน (กด '▶ รันสแกน' เพื่อโหลดกราฟครบทุกโหมด)", "ok")
 
     def generate_pdf_report(self):
         if pdf_gen is None:
@@ -3317,14 +3355,17 @@ def main():
     except Exception:
         pass
 
-    p = argparse.ArgumentParser(description="AI Quant Workbench v4.0")
-    p.add_argument("--smoke-test", action="store_true", help="ทดสอบระบบ Workbench v4.0 และ Hermes 2-Way Sync")
+    p = argparse.ArgumentParser(description="AI Quant Workbench v7.0")
+    p.add_argument("--smoke-test", action="store_true", help="ทดสอบระบบ Workbench v7.0 และ Hermes 2-Way Sync")
     args = p.parse_args()
 
     root = tk.Tk()
-    app = QuantWorkbenchV4(root)
+    app = QuantWorkbench(root)
     if args.smoke_test:
         root.update()
+        # ทดสอบ toggle_chart_toolbar ว่าไม่เกิด AttributeError
+        app.toggle_chart_toolbar()
+        app.toggle_chart_toolbar()
         # ทดสอบฟังก์ชัน Ctrl+A, Ctrl+C, Ctrl+V (ทับส่วนที่คลุมดำ), Ctrl+Z (Undo), Ctrl+Y (Redo) แบบ Word 2019
         test_entry = tk.Entry(root)
         test_entry.insert(0, "NVDA AAPL")
@@ -3341,7 +3382,7 @@ def main():
         assert test_entry.get() == "TSLA MSFT", f"Redo failed: got {test_entry.get()}"
         app.manual_sync_hermes()
         root.update()
-        print("GUI v4.0 Workbench Smoke Test OK — Word 2019 Shortcuts (Ctrl+C/V/Z/Y/X/A) & Right-Click Menu ผ่านครบถ้วน")
+        print("AI Quant Workbench v7.0 Smoke Test OK — Toolbar Toggle, KPI Cards & Word Shortcuts ผ่านครบถ้วน")
         root.destroy()
         return
     root.mainloop()

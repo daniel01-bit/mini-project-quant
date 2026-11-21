@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-hermes_bridge.py — ระบบเชื่อมต่อ 2 ทาง (2-Way Sync & Command Bus) ระหว่าง AI Quant Terminal v4.0 กับ Hermes Agent
+hermes_bridge.py — ระบบเชื่อมต่อ 2 ทาง (2-Way Sync & Command Bus) ระหว่าง AI Quant Workbench v7.0 กับ Hermes Agent
 ความสามารถหลัก:
-  1) Auto-Sync Memory: อัปเดตสถานะพอร์ต, สัญญาณสแกนล่าสุด (Quant Score, ML Win%, Optimal Weight%) เข้าสู่:
-       - C:\\Users\\ASUS\\Desktop\\mini-project-quant01\\memories\\MEMORY.md
-       - C:\\Users\\ASUS\\AppData\\Local\\hermes\\memories\\MEMORY.md
-       - C:\\Users\\ASUS\\AppData\\Local\\hermes\\profiles\\mini-project-quant01\\memories\\MEMORY.md
+  1) Auto-Sync Memory: อัปเดตสถานะพอร์ตและสัญญาณสแกนล่าสุดลงในโฟลเดอร์ memories/ ของโปรเจกต์
+     และซิงก์ไปยัง Hermes Home (กำหนดผ่าน Environment Variable HERMES_HOME หรือ ~/.local/share/hermes / %LOCALAPPDATA%/hermes)
   2) Shared Command Bus (hermes_bus.json):
-       - ให้ Hermes Agent ส่งคำสั่ง (เช่น สั่งสแกนหุ้นใหม่, สั่งปรับพอร์ต, หรือส่งข้อความแนะนำ) เข้ามายังหน้าต่าง GUI ได้สดๆ
+     ให้ Hermes Agent ส่งคำสั่ง (scan / note) เข้ามายังหน้าต่าง GUI ได้แบบ Real-Time
   3) Hermes Skill Installer:
-       - ติดตั้ง Skill 'quant-v4-copilot' ลงในโปรไฟล์ของ Hermes Agent เพื่อให้ Hermes รู้จักคำสั่งควบคุมโปรเจกต์ v4.0 ทันที
-วิธีสั่งงานจากฝั่ง Hermes Agent หรือ CLI:
+     ติดตั้ง Skill 'quant-copilot' ลงในโปรไฟล์ของ Hermes Agent อัตโนมัติ
+วิธีสั่งงานจาก CLI:
   python hermes_bridge.py status
-  python hermes_bridge.py cmd --action scan --tickers "^NDX NVDA AAPL TSLA BTC-USD"
-  python hermes_bridge.py cmd --action note --message "Hermes แนะนำให้ถือเงินสดสำรองเพิ่ม"
+  python hermes_bridge.py cmd --action scan --tickers "^NDX NVDA AAPL BTC-USD"
+  python hermes_bridge.py cmd --action note --message "สรุปมุมมองตลาด..."
 """
 
 import argparse
@@ -26,8 +24,19 @@ WORK_DIR = os.path.dirname(os.path.abspath(__file__))
 BUS_PATH = os.path.join(WORK_DIR, "hermes_bus.json")
 LOCAL_MEM_DIR = os.path.join(WORK_DIR, "memories")
 
-HERMES_GLOBAL_MEM = r"C:\Users\ASUS\AppData\Local\hermes\memories\MEMORY.md"
-HERMES_PROFILE_DIR = r"C:\Users\ASUS\AppData\Local\hermes\profiles\mini-project-quant01"
+# Portable cross-platform paths (ไม่ Hardcode ชื่อผู้ใช้หรือ Path เครื่องส่วนตัว)
+_USER_HOME = os.path.expanduser("~")
+_DEFAULT_HERMES_HOME = (
+    os.path.join(os.environ.get("LOCALAPPDATA", os.path.join(_USER_HOME, "AppData", "Local")), "hermes")
+    if os.name == "nt"
+    else os.path.join(_USER_HOME, ".local", "share", "hermes")
+)
+HERMES_HOME = os.environ.get("HERMES_HOME", _DEFAULT_HERMES_HOME)
+HERMES_PROFILE_NAME = os.environ.get("HERMES_PROFILE_NAME", os.path.basename(WORK_DIR))
+HOME_REPO_DIR = os.environ.get("HOME_REPO_DIR", os.path.join(_USER_HOME, "Desktop", "home-repo"))
+
+HERMES_GLOBAL_MEM = os.path.join(HERMES_HOME, "memories", "MEMORY.md")
+HERMES_PROFILE_DIR = os.path.join(HERMES_HOME, "profiles", HERMES_PROFILE_NAME)
 HERMES_PROFILE_MEM = os.path.join(HERMES_PROFILE_DIR, "memories", "MEMORY.md")
 HERMES_SKILL_DIR = os.path.join(HERMES_PROFILE_DIR, "skills", "quant-v4-copilot")
 
@@ -63,16 +72,14 @@ name: quant-v4-copilot
 description: สั่งงานและตรวจสอบสถานะของ AI Quant Terminal v4.0 (สแกนหุ้น, ดูพอร์ตจริง/จำลอง, คำนวณ ML Win Prob, จัดพอร์ต Risk Parity และส่งคำสั่งเข้าหน้า GUI)
 ---
 
-# Quant Terminal — Hermes Co-Pilot Skill
+# Quant Workbench v7.0 — Hermes Co-Pilot Skill
 
-## กฎเหล็กก่อนเริ่มงาน (Central Control Plane: `home-repo`)
-ทุกครั้งที่เริ่ม Session หรือได้รับคำสั่งเกี่ยวกับโปรเจกต์ของ Daniel ต้องอ่านไฟล์ควบคุมกลางก่อนเสมอ:
-- `C:\\Users\\ASUS\\Desktop\\home-repo\\AGENTS.md`
-- `C:\\Users\\ASUS\\Desktop\\home-repo\\core_memory\\short_term_state.md`
-- `C:\\Users\\ASUS\\Desktop\\home-repo\\project_registry\\routing_map.md`
-- `{WORK_DIR}\\PROJECT_ROADMAP.md`
+## กฎเหล็กก่อนเริ่มงาน (Central Control Plane)
+ทุกครั้งที่เริ่ม Session ให้อ่านไฟล์ควบคุมกลางก่อนเสมอ (หากมีอยู่ในเครื่อง):
+- `{os.path.join(HOME_REPO_DIR, 'AGENTS.md')}`
+- `{os.path.join(WORK_DIR, 'PROJECT_ROADMAP.md')}`
 
-เมื่อผู้ใช้ถามเกี่ยวกับโปรเจกต์ Quant (`mini-project-quant01`) หรือสั่งให้สแกนหุ้น/ดูพอร์ต/ส่งข้อความเข้า Dashboard ให้รันคำสั่งในโฟลเดอร์ `{WORK_DIR}` ดังนี้:
+เมื่อผู้ใช้ถามเกี่ยวกับโปรเจกต์ Quant หรือสั่งให้สแกนหุ้น/ดูพอร์ต/ส่งข้อความเข้า Dashboard ให้รันคำสั่งในโฟลเดอร์ `{WORK_DIR}` ดังนี้:
 
 ## 1. ดูสถานะพอร์ตและผลสแกนล่าสุด (Instant Status)
 ```powershell
@@ -156,19 +163,18 @@ def sync_to_hermes_memory(
             pass
 
     mem_block = (
-        f"env: Ollama 0.40.16 running on 127.0.0.1:11434; Windows 11 PowerShell.\n"
+        f"env: Local Quant Environment ({os.name}); Python Quant Workbench v7.0.\n"
         f"§\n"
-        f"central_hub: C:\\Users\\ASUS\\Desktop\\home-repo (Control Plane — อ่าน AGENTS.md, core_memory/*.md, project_registry/routing_map.md ก่อนเริ่มงานทุกครั้ง)\n"
-        f"project: mini-project-quant01 (AI Quant System — Lean Live Profitability Edition & Hermes 2-Way Sync)\n"
-        f"- ตำแหน่ง: {WORK_DIR}\n"
-        f"- กฎเหล็ก (STRICT GUARDRAILS): อ่าน C:\\Users\\ASUS\\Desktop\\home-repo\\AGENTS.md และ {WORK_DIR}\\PROJECT_ROADMAP.md ก่อนเสมอ\n"
-        f"- อัปเดตล่าสุด: {now_str} | สภาวะตลาดมหภาค: {macro_vix}\n"
-        f"- สถานะบัญชี ({acc_line})\n"
-        f"- ผลสแกน Watchlist ล่าสุด:\n"
-        + ("\n".join(scan_summary_lines) if scan_summary_lines else "  * (รอการสแกน)")
+        f"central_hub: {HOME_REPO_DIR} (Control Plane — read AGENTS.md & PROJECT_ROADMAP.md first)\n"
+        f"project: {HERMES_PROFILE_NAME} (AI Quant Workbench v7.0 — Production & Portfolio Standard)\n"
+        f"- Path: {WORK_DIR}\n"
+        f"- Last Updated: {now_str} | Macro Regime: {macro_vix}\n"
+        f"- Account ({acc_line})\n"
+        f"- Latest Watchlist Scan:\n"
+        + ("\n".join(scan_summary_lines) if scan_summary_lines else "  * (pending scan)")
         + "\n"
-        f"- วิธีเปิด GUI: python quant_gui.py หรือดับเบิลคลิก run_dashboard.bat\n"
-        f"- วิธีที่ Hermes ใช้สั่งงาน GUI: python hermes_bridge.py cmd --action scan --tickers \"^NDX NVDA AAPL BTC-USD\"\n"
+        f"- Launch GUI: python quant_gui.py (or run_dashboard.bat)\n"
+        f"- Headless Runner: python daily_runner.py --dry-run\n"
         + roadmap_text
     )
 
@@ -177,36 +183,37 @@ def sync_to_hermes_memory(
     with open(os.path.join(LOCAL_MEM_DIR, "MEMORY.md"), "w", encoding="utf-8") as f:
         f.write(mem_block)
 
-    # 2. ซิงก์ไปยัง Hermes Global & Profile MEMORY.md และ SOUL.md
+    # 2. ซิงก์ไปยัง Hermes Global & Profile MEMORY.md และ SOUL.md / USER.md (เฉพาะเมื่อมี Hermes directory อยู่จริง)
     synced_paths = [os.path.join(LOCAL_MEM_DIR, "MEMORY.md")]
-    for target_path in (HERMES_GLOBAL_MEM, HERMES_PROFILE_MEM):
-        try:
-            os.makedirs(os.path.dirname(target_path), exist_ok=True)
-            with open(target_path, "w", encoding="utf-8") as f:
-                f.write(mem_block)
-            synced_paths.append(target_path)
-        except Exception:
-            pass
-
-    for mem_filename in ("SOUL.md", "USER.md"):
-        local_m_path = os.path.join(LOCAL_MEM_DIR, mem_filename)
-        if os.path.exists(local_m_path):
+    if os.path.isdir(HERMES_HOME):
+        for target_path in (HERMES_GLOBAL_MEM, HERMES_PROFILE_MEM):
             try:
-                with open(local_m_path, encoding="utf-8") as sf:
-                    m_content = sf.read()
-                for m_target in (
-                    os.path.join(r"C:\Users\ASUS\AppData\Local\hermes\memories", mem_filename),
-                    os.path.join(HERMES_PROFILE_DIR, "memories", mem_filename),
-                ):
-                    try:
-                        os.makedirs(os.path.dirname(m_target), exist_ok=True)
-                        with open(m_target, "w", encoding="utf-8") as stf:
-                            stf.write(m_content)
-                        synced_paths.append(m_target)
-                    except Exception:
-                        pass
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                with open(target_path, "w", encoding="utf-8") as f:
+                    f.write(mem_block)
+                synced_paths.append(target_path)
             except Exception:
                 pass
+
+        for mem_filename in ("SOUL.md", "USER.md"):
+            local_m_path = os.path.join(LOCAL_MEM_DIR, mem_filename)
+            if os.path.exists(local_m_path):
+                try:
+                    with open(local_m_path, encoding="utf-8") as sf:
+                        m_content = sf.read()
+                    for m_target in (
+                        os.path.join(HERMES_HOME, "memories", mem_filename),
+                        os.path.join(HERMES_PROFILE_DIR, "memories", mem_filename),
+                    ):
+                        try:
+                            os.makedirs(os.path.dirname(m_target), exist_ok=True)
+                            with open(m_target, "w", encoding="utf-8") as stf:
+                                stf.write(m_content)
+                            synced_paths.append(m_target)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
 
     # 3. อัปเดต hermes_bus.json
     bus["last_sync"] = now_str
