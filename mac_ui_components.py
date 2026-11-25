@@ -81,8 +81,34 @@ def draw_rounded_rect(
         canvas.create_line(x2, y1 + r, x2, y2 - r, fill=outline, width=width)
 
 
+TOOLTIP_THEME = {
+    "bg": "#121721",
+    "border": "#2F81F7",
+    "title_fg": "#58A6FF",
+    "body_fg": "#E6EDF3",
+}
+
+
+def set_tooltip_theme(is_dark: bool):
+    """อัปเดตสีกล่อง Tooltip ให้สอดคล้องกับโหมด Dark/Light ปัจจุบัน"""
+    if is_dark:
+        TOOLTIP_THEME.update({
+            "bg": "#121721",
+            "border": "#2F81F7",
+            "title_fg": "#58A6FF",
+            "body_fg": "#E6EDF3",
+        })
+    else:
+        TOOLTIP_THEME.update({
+            "bg": "#FFFFFF",
+            "border": "#007AFF",
+            "title_fg": "#0066CC",
+            "body_fg": "#1C1C1E",
+        })
+
+
 class MacTooltip:
-    """กล่องคำอธิบายลอยสไตล์ macOS แสดงเมื่อเอาเมาส์ชี้ปุ่มคำสั่ง"""
+    """กล่องคำอธิบายลอยรองรับทั้ง Dark/Light Mode แสดงเมื่อเอาเมาส์ชี้ปุ่มคำสั่ง"""
 
     def __init__(self, widget: tk.Widget, title: str, description: str):
         self.widget = widget
@@ -106,10 +132,32 @@ class MacTooltip:
             tw.wm_geometry(f"+{x}+{y}")
             tw.attributes("-topmost", True)
 
-            frame = tk.Frame(tw, bg="#181818", padx=10, pady=6, highlightthickness=1, highlightbackground="#0A84FF")
+            frame = tk.Frame(
+                tw,
+                bg=TOOLTIP_THEME["bg"],
+                padx=10,
+                pady=6,
+                highlightthickness=1,
+                highlightbackground=TOOLTIP_THEME["border"],
+            )
             frame.pack()
-            tk.Label(frame, text=self.title, font=("Leelawadee UI", 9, "bold"), fg="#4EC9B0", bg="#181818", anchor="w").pack(fill=tk.X)
-            tk.Label(frame, text=self.description, font=("Leelawadee UI", 9), fg="#D4D4D4", bg="#181818", anchor="w", justify=tk.LEFT).pack(fill=tk.X, pady=(2, 0))
+            tk.Label(
+                frame,
+                text=self.title,
+                font=("Leelawadee UI", 9, "bold"),
+                fg=TOOLTIP_THEME["title_fg"],
+                bg=TOOLTIP_THEME["bg"],
+                anchor="w",
+            ).pack(fill=tk.X)
+            tk.Label(
+                frame,
+                text=self.description,
+                font=("Leelawadee UI", 9),
+                fg=TOOLTIP_THEME["body_fg"],
+                bg=TOOLTIP_THEME["bg"],
+                anchor="w",
+                justify=tk.LEFT,
+            ).pack(fill=tk.X, pady=(2, 0))
         except Exception:
             self.tip_win = None
 
@@ -124,9 +172,10 @@ class MacTooltip:
 
 class MacExpandingCircleButton(tk.Canvas):
     """
-    ปุ่มไอคอนทรงกลมสไตล์ MacBook สำหรับแถบคำสั่งด้านบนขวา:
-      - เวลาปกติ: เป็นวงกลมขนาดกะทัดรัด (34x34 px) แสดงเฉพาะไอคอนตรงกลาง ไม่กินพื้นที่หน้าจอ
-      - เวลาเอาเมาส์ไปใกล้ๆ (<Enter>): ยืดออกเป็นทรงแคปซูล (Expanding Pill) แสดงไอคอน + ชื่อคำสั่ง พร้อมกล่อง Tooltip อธิบายหน้าที่ด้านล่าง
+    ปุ่มคำสั่งขนาดคงที่สไตล์ Quant Terminal (Zero Horizontal Reflow):
+      - ไม่ขยายความกว้างขณะ Hover เพื่อไม่ให้แถบปุ่มข้างเคียงกระตุก
+      - รองรับทั้งโหมดไอคอนล้วนขนาดกะทัดรัด (show_label=False) และปุ่มป้ายชื่อคงที่สำหรับ Primary/Danger CTA (show_label=True)
+      - แสดงกล่อง Tooltip อธิบายรายละเอียดทันทีเมื่อเอาเมาส์ชี้
     """
 
     def __init__(
@@ -135,20 +184,33 @@ class MacExpandingCircleButton(tk.Canvas):
         icon: str,
         label: str,
         tooltip_desc: str,
-        bg_color: str = "#0A84FF",
+        bg_color: str = "#2F81F7",
         fg_color: str = "#FFFFFF",
-        parent_bg: str = "#181818",
+        parent_bg: str = "#121721",
         command=None,
-        circle_size: int = 34,
-        expanded_width: int = 132,
+        circle_size: int = 32,
+        expanded_width: int = 112,
+        show_label: bool = False,
+        border_color: str = "",
+        fixed_width: int | None = None,
     ):
-        self.circle_size = circle_size
+        self.circle_size = max(circle_size, 32)
         self.expanded_width = expanded_width
-        self.cur_width = circle_size
+        self.show_label = show_label
         self.icon_str = icon
         self.label_str = label
+        if show_label:
+            full_txt = f"{icon} {label}".strip()
+            measurer = tkfont.Font(font=("Leelawadee UI", 9, "bold"))
+            min_w = measurer.measure(full_txt) + 24
+            base_w = fixed_width if fixed_width is not None else expanded_width
+            self.fixed_width = max(base_w, min_w)
+        else:
+            self.fixed_width = fixed_width if fixed_width is not None else self.circle_size
+        self.cur_width = self.fixed_width
         self.bg_color = bg_color
         self.hover_color = _brighten_hex(bg_color, 1.18)
+        self.border_color = border_color
         self.fg_color = fg_color
         self.parent_bg = parent_bg
         self.command = command
@@ -158,7 +220,7 @@ class MacExpandingCircleButton(tk.Canvas):
 
         super().__init__(
             parent,
-            width=circle_size,
+            width=self.cur_width,
             height=circle_size,
             bg=parent_bg,
             highlightthickness=0,
@@ -177,51 +239,32 @@ class MacExpandingCircleButton(tk.Canvas):
         self.delete("all")
         w = self.cur_width
         h = self.circle_size
-        r = (h - 4) / 2.0
+        r = 8.0
 
-        fill_c = "#3C3C3C" if self.state_mode == tk.DISABLED else (self.hover_color if self.is_hovered else self.bg_color)
-        outline_c = "#FFFFFF" if self.is_hovered and self.state_mode != tk.DISABLED else fill_c
-
-        if w <= h + 2:
-            self.create_oval(2, 2, h - 2, h - 2, fill=fill_c, outline=outline_c, width=1.2 if self.is_hovered else 0)
-            self.create_text(h / 2.0, h / 2.0, text=self.icon_str, fill=self.fg_color, font=("Segoe UI Emoji", 10, "bold"))
+        fill_c = "#21262D" if self.state_mode == tk.DISABLED else (self.hover_color if self.is_hovered else self.bg_color)
+        if self.state_mode == tk.DISABLED:
+            outline_c = "#30363D"
+        elif self.is_hovered:
+            outline_c = "#58A6FF"
         else:
-            draw_rounded_rect(self, 2, 2, w - 2, h - 2, radius=r, fill=fill_c, outline=outline_c, width=1.2)
-            full_txt = f"{self.icon_str} {self.label_str}"
+            outline_c = self.border_color or fill_c
+
+        draw_rounded_rect(self, 1, 1, w - 1, h - 1, radius=r, fill=fill_c, outline=outline_c, width=1.0)
+        if self.show_label:
+            full_txt = f"{self.icon_str} {self.label_str}".strip()
             self.create_text(w / 2.0, h / 2.0, text=full_txt, fill=self.fg_color, font=("Leelawadee UI", 9, "bold"))
-
-    def _animate_to(self, target_w: int):
-        if self._anim_job:
-            try:
-                self.after_cancel(self._anim_job)
-            except Exception:
-                pass
-            self._anim_job = None
-
-        diff = target_w - self.cur_width
-        if abs(diff) <= 8:
-            self.cur_width = target_w
-            super().configure(width=self.cur_width)
-            self._redraw()
-            return
-
-        step = int(diff * 0.48)
-        if step == 0:
-            step = 1 if diff > 0 else -1
-        self.cur_width += step
-        super().configure(width=self.cur_width)
-        self._redraw()
-        self._anim_job = self.after(14, lambda: self._animate_to(target_w))
+        else:
+            self.create_text(w / 2.0, h / 2.0, text=self.icon_str, fill=self.fg_color, font=("Segoe UI Symbol", 11, "bold"))
 
     def _on_enter(self, _event):
         self.is_hovered = True
-        self._animate_to(self.expanded_width)
+        self._redraw()
         self.tooltip.show()
 
     def _on_leave(self, _event):
         self.is_hovered = False
         self.tooltip.hide()
-        self._animate_to(self.circle_size)
+        self._redraw()
 
     def _on_click(self, _event):
         if self.state_mode != tk.DISABLED and callable(self.command):
@@ -234,6 +277,11 @@ class MacExpandingCircleButton(tk.Canvas):
         if "bg" in kwargs:
             self.bg_color = kwargs.pop("bg")
             self.hover_color = _brighten_hex(self.bg_color, 1.18)
+        if "parent_bg" in kwargs:
+            self.parent_bg = kwargs.pop("parent_bg")
+            super().configure(bg=self.parent_bg)
+        if "border_color" in kwargs:
+            self.border_color = kwargs.pop("border_color")
         if "fg" in kwargs:
             self.fg_color = kwargs.pop("fg")
         if "text" in kwargs:
@@ -243,8 +291,7 @@ class MacExpandingCircleButton(tk.Canvas):
                 self.icon_str, self.label_str = parts[0], parts[1]
             else:
                 self.label_str = raw_t
-            self.expanded_width = max(115, min(195, len(self.label_str) * 8 + 44))
-            self.tooltip.title = f"{self.icon_str} {self.label_str}"
+            self.tooltip.title = f"{self.icon_str} {self.label_str}".strip()
         if kwargs:
             super().configure(**kwargs)
         self._redraw()
@@ -468,8 +515,13 @@ class RoundedButton(tk.Canvas):
                 parent_bg = "#1E1E1E"
         self.parent_bg = parent_bg
 
-        est_w = width if width else max(56, int(len(text) * 6.8) + padx * 2)
-        est_h = height if height else (24 + max(0, (pady - 3) * 2))
+        measurer = tkfont.Font(font=self.font_spec)
+        text_w = measurer.measure(text)
+        text_h = measurer.metrics("linespace")
+        min_w = text_w + max(padx * 2, 22)
+        min_h = max(text_h + 12, 30)
+        est_w = max(width, min_w) if width else max(60, min_w)
+        est_h = max(height, min_h) if height else max(30, min_h)
         self.btn_w = est_w
         self.btn_h = est_h
 
@@ -659,9 +711,11 @@ class MacSegmentedControl(tk.Canvas):
         self.hover_key: str | None = None
         self.segment_rects: list[tuple[str, float, float, str]] = []
 
-        # วัดความกว้างจริงของข้อความเป็นพิกเซล (แก้ปัญหาตัวอักษรไทย/อีโมจิเหลื่อมกัน)
+        # วัดความกว้างและความสูงจริงของข้อความเป็นพิกเซล (เผื่อสระ/วรรณยุกต์ภาษาไทยให้ไม่อึดอัด)
         measurer = tkfont.Font(font=self.font)
-        self.seg_widths = [max(68, measurer.measure(lbl) + 26) for _, lbl, _ in items]
+        linespace = measurer.metrics("linespace")
+        self.ctrl_h = max(height, linespace + 14, 34)
+        self.seg_widths = [max(74, measurer.measure(lbl) + 32) for _, lbl, _ in items]
         self.total_w = sum(self.seg_widths) + 8
 
         super().__init__(

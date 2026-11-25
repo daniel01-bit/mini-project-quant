@@ -58,58 +58,62 @@ def strip_emoji(text: str) -> str:
 
 THEMES = {
     "dark": {
-        "bg": "#161618",
-        "panel": "#1C1C1E",
-        "header": "#1C1C1E",
-        "card": "#242426",
-        "card_border": "#38383A",
-        "fg": "#F5F5F7",
-        "sub_fg": "#8E8E93",
-        "accent": "#30D158",
-        "border": "#38383A",
-        "seg_track": "#2C2C2E",
-        "seg_hover": "#3A3A3C",
-        "tree_bg": "#1C1C1E",
-        "tree_fg": "#F5F5F7",
-        "tree_head_bg": "#242426",
-        "tree_head_fg": "#AEAEB2",
-        "tree_sel": "#0A84FF",
-        "log_bg": "#141416",
-        "log_fg": "#D1D1D6",
-        "fig_bg": "#1C1C1E",
-        "ax_bg": "#161618",
-        "grid": "#2C2C2E",
-        "tag_buy_bg": "#122B20",
-        "tag_buy_fg": "#30D158",
-        "tag_hold_bg": "#14263C",
-        "tag_hold_fg": "#64D2FF",
-        "tag_wait_bg": "#2D2512",
-        "tag_wait_fg": "#FFD60A",
-        "tag_sell_bg": "#331618",
-        "tag_sell_fg": "#FF453A",
+        "bg": "#0B0E14",
+        "panel": "#121721",
+        "header": "#121721",
+        "card": "#161C28",
+        "card_border": "#253042",
+        "fg": "#E6EDF3",
+        "sub_fg": "#8B949E",
+        "accent": "#2F81F7",
+        "border": "#253042",
+        "seg_track": "#161C28",
+        "seg_hover": "#1F2937",
+        "btn_neutral": "#1B2332",
+        "btn_neutral_fg": "#C9D1D9",
+        "tree_bg": "#121721",
+        "tree_fg": "#E6EDF3",
+        "tree_head_bg": "#161C28",
+        "tree_head_fg": "#8B949E",
+        "tree_sel": "#1F6FEB",
+        "log_bg": "#0D1117",
+        "log_fg": "#C9D1D9",
+        "fig_bg": "#121721",
+        "ax_bg": "#0B0E14",
+        "grid": "#1E2634",
+        "tag_buy_bg": "#0F291E",
+        "tag_buy_fg": "#3FB950",
+        "tag_hold_bg": "#12263F",
+        "tag_hold_fg": "#58A6FF",
+        "tag_wait_bg": "#2B2211",
+        "tag_wait_fg": "#D29922",
+        "tag_sell_bg": "#31161A",
+        "tag_sell_fg": "#F85149",
     },
     "light": {
-        "bg": "#F2F2F7",
+        "bg": "#F4F6F9",
         "panel": "#FFFFFF",
         "header": "#FFFFFF",
         "card": "#FFFFFF",
-        "card_border": "#D1D1D6",
-        "fg": "#1C1C1E",
-        "sub_fg": "#6E6E73",
-        "accent": "#007AFF",
-        "border": "#D1D1D6",
-        "seg_track": "#E5E5EA",
-        "seg_hover": "#D1D1D6",
+        "card_border": "#D0D7DE",
+        "fg": "#1F2328",
+        "sub_fg": "#656D76",
+        "accent": "#0969DA",
+        "border": "#D0D7DE",
+        "seg_track": "#EAEEF2",
+        "seg_hover": "#D8DEE4",
+        "btn_neutral": "#F0F3F6",
+        "btn_neutral_fg": "#24292F",
         "tree_bg": "#FFFFFF",
-        "tree_fg": "#1C1C1E",
-        "tree_head_bg": "#F2F2F7",
-        "tree_head_fg": "#3A3A3C",
-        "tree_sel": "#007AFF",
-        "log_bg": "#F9F9FB",
-        "log_fg": "#1C1C1E",
+        "tree_fg": "#1F2328",
+        "tree_head_bg": "#F6F8FA",
+        "tree_head_fg": "#57606A",
+        "tree_sel": "#0969DA",
+        "log_bg": "#F6F8FA",
+        "log_fg": "#1F2328",
         "fig_bg": "#FFFFFF",
-        "ax_bg": "#F9F9FB",
-        "grid": "#E5E5EA",
+        "ax_bg": "#FAFBFD",
+        "grid": "#E5E9F0",
         "tag_buy_bg": "#DCFCE7",
         "tag_buy_fg": "#166534",
         "tag_hold_bg": "#DBEAFE",
@@ -408,15 +412,19 @@ class QuantWorkbench:
         self.card_title_labels: list[tk.Label] = []
         self.card_body_labels: list[tk.Label] = []
         self.mode_buttons: dict[str, tk.Button] = {}
-        self.right_panel_visible: bool = True
+        self.right_panel_visible: bool = False
         self.dock_panel_visible: bool = True
         self.terminal_visible: bool = False
         self.show_chart_legend: bool = False
         self.chart_fullscreen: bool = False
-        self._saved_right_visible: bool = True
+        self._saved_right_visible: bool = False
         self._saved_dock_visible: bool = True
         self.draw_toolbar_visible: bool = False
         self.chart_toolbar_visible: bool = False
+        self.live_refresh_enabled: bool = False
+        self.live_refresh_interval_sec: int = 60
+        self._live_refresh_busy: bool = False
+        self._live_refresh_job = None
         self._settings_win = None
         self.toaster = mui.MacToastManager(self.root)
         self.drawing_mgr = cdt.ChartDrawingManager(
@@ -447,6 +455,8 @@ class QuantWorkbench:
         self._load_existing_csv_if_available()
         self.sync_broker_portfolio()
         self._refresh_hermes_chat_box()
+        if not self.selected_ticker or self.selected_ticker not in self.ticker_cache:
+            self.redraw_interactive_chart()
 
         self.root.after(80, self._process_queue)
         self.root.after(1500, self._poll_hermes_bus)
@@ -462,12 +472,31 @@ class QuantWorkbench:
 
     def apply_theme(self):
         t = THEMES[self.theme_mode]
+        mui.set_tooltip_theme(self.theme_mode == "dark")
         self.root.configure(bg=t["bg"])
 
         if self.theme_mode == "dark":
-            self.theme_btn.config(text="☀️ Light Mode", bg="#636366", fg="#FFFFFF")
+            self.theme_btn.config(text="◐ Light", bg=t["btn_neutral"], fg=t["btn_neutral_fg"], border_color=t["border"], parent_bg=t["panel"])
         else:
-            self.theme_btn.config(text="🌙 Dark Mode", bg="#3A3A3C", fg="#FFFFFF")
+            self.theme_btn.config(text="◑ Dark", bg=t["btn_neutral"], fg=t["btn_neutral_fg"], border_color=t["border"], parent_bg=t["panel"])
+
+        for btn_attr in ("run_btn", "live_btn", "rebal_btn", "sniper_hub_btn", "panic_btn"):
+            btn = getattr(self, btn_attr, None)
+            if btn is not None:
+                btn.config(parent_bg=t["panel"])
+        if hasattr(self, "live_btn"):
+            if self.live_refresh_enabled:
+                self.live_btn.config(bg="#0F291E", fg="#3FB950", border_color="#238636")
+            else:
+                self.live_btn.config(bg=t["btn_neutral"], fg=t["btn_neutral_fg"], border_color=t["border"])
+        if hasattr(self, "rebal_btn"):
+            self.rebal_btn.config(bg=t["btn_neutral"], border_color=t["tag_buy_fg"], fg=t["tag_buy_fg"])
+        if hasattr(self, "sniper_hub_btn") and not getattr(self, "auto_bot_enabled", False):
+            self.sniper_hub_btn.config(bg=t["btn_neutral"], border_color=t["border"], fg=t["btn_neutral_fg"])
+        if hasattr(self, "lbl_brand"):
+            self.lbl_brand.config(bg=t["panel"], fg=t["accent"])
+        if hasattr(self, "top_sep"):
+            self.top_sep.config(bg=t["border"])
 
         self.style.configure(".", background=t["bg"], foreground=t["fg"], font=("Leelawadee UI", 10))
         self.style.configure("TFrame", background=t["bg"])
@@ -500,11 +529,11 @@ class QuantWorkbench:
             background=t["tree_bg"],
             fieldbackground=t["tree_bg"],
             foreground=t["tree_fg"],
-            rowheight=30,
-            font=("Leelawadee UI", 10),
+            rowheight=32,
+            font=("Leelawadee UI", 9),
             borderwidth=0,
         )
-        self.style.configure("Treeview.Heading", background=t["tree_head_bg"], foreground=t["tree_head_fg"], font=("Leelawadee UI", 9, "bold"), relief="flat", padding=[6, 5])
+        self.style.configure("Treeview.Heading", background=t["tree_head_bg"], foreground=t["tree_head_fg"], font=("Leelawadee UI", 9, "bold"), relief="flat", padding=[8, 6])
         self.style.map("Treeview", background=[("selected", t["tree_sel"])], foreground=[("selected", "#FFFFFF")])
 
         for fr in self.panel_frames:
@@ -548,22 +577,23 @@ class QuantWorkbench:
         self._highlight_active_mode_button()
 
     # ==========================================
-    # 1. แถบควบคุมด้านบนสุด (macOS Clean Toolbar + แยกกลุ่ม Utility / Execution)
+    # 1. แถบควบคุมด้านบนสุด (Quant Terminal Toolbar — Zero Reflow, Restrained Semantic Colors)
     # ==========================================
     def _build_top_command_bar(self):
-        top = tk.Frame(self.root, bg="#1C1C1E", padx=14, pady=8)
+        t = THEMES[self.theme_mode]
+        top = tk.Frame(self.root, bg=t["panel"], padx=14, pady=8)
         top.pack(fill=tk.X)
         self.panel_frames.append(top)
 
-        # เส้นคั่นบางๆ ใต้ Toolbar สไตล์ macOS
-        sep = tk.Frame(self.root, bg="#38383A", height=1)
-        sep.pack(fill=tk.X)
+        # เส้นคั่น 1px ใต้ Toolbar
+        self.top_sep = tk.Frame(self.root, bg=t["border"], height=1)
+        self.top_sep.pack(fill=tk.X)
 
-        lbl_brand = tk.Label(top, text="QUANT v7.0", font=("Segoe UI", 11, "bold"), fg="#0A84FF", bg="#1C1C1E")
-        lbl_brand.pack(side=tk.LEFT, padx=(0, 14))
+        self.lbl_brand = tk.Label(top, text="QUANT v7.0", font=("Consolas", 11, "bold"), fg=t["accent"], bg=t["panel"])
+        self.lbl_brand.pack(side=tk.LEFT, padx=(0, 14))
 
-        # ช่องกรอก Watchlist ขอบมนเรืองแสงเมื่อคลิก (macOS Focus Ring)
-        lbl_w = tk.Label(top, text="Watchlist", font=("Segoe UI", 9, "bold"), fg="#8E8E93", bg="#1C1C1E")
+        # ช่องกรอก Watchlist
+        lbl_w = tk.Label(top, text="Watchlist", font=("Leelawadee UI", 9, "bold"), fg=t["sub_fg"], bg=t["panel"])
         lbl_w.pack(side=tk.LEFT)
         self.panel_labels.append(lbl_w)
 
@@ -573,24 +603,24 @@ class QuantWorkbench:
             textvariable=self.tickers_var,
             width=18,
             font=("Consolas", 10, "bold"),
-            fg="#30D158",
-            bg="#141416",
-            parent_bg="#1C1C1E",
+            fg="#3FB950",
+            bg=t["log_bg"],
+            parent_bg=t["panel"],
         ).pack(side=tk.LEFT, padx=(6, 4))
 
         mui.RoundedButton(
             top,
-            text="🔍",
-            bg="#2C2C2E",
-            fg="#F5F5F7",
-            parent_bg="#1C1C1E",
-            radius=12.0,
-            width=32,
+            text="เลือกหุ้น",
+            bg=t["accent"],
+            fg="#FFFFFF",
+            parent_bg=t["panel"],
+            radius=8.0,
+            width=68,
             height=28,
             command=self.open_ticker_expander_popup,
-        ).pack(side=tk.LEFT, padx=(0, 10))
+        ).pack(side=tk.LEFT, padx=(0, 6))
 
-        # ค่าตั้งที่เปลี่ยนไม่บ่อย (Period / ทุน / Risk / ดึงสด / AI) ย้ายไปไว้ในป๊อปอัป ⚙ Settings
+        # ค่าตั้งที่เปลี่ยนไม่บ่อย (Period / ทุน / Risk / ดึงสด / AI) อยู่ในป๊อปอัป Settings
         self.period_var = tk.StringVar(value="2y")
         self.capital_var = tk.StringVar(value="100000")
         self.risk_var = tk.StringVar(value="2.0")
@@ -599,12 +629,12 @@ class QuantWorkbench:
 
         self.settings_btn = mui.RoundedButton(
             top,
-            text="⚙",
-            bg="#2C2C2E",
-            fg="#F5F5F7",
-            parent_bg="#1C1C1E",
-            radius=12.0,
-            width=32,
+            text="Config",
+            bg=t["btn_neutral"],
+            fg=t["btn_neutral_fg"],
+            parent_bg=t["panel"],
+            radius=8.0,
+            width=54,
             height=28,
             command=self.open_settings_popover,
         )
@@ -612,7 +642,7 @@ class QuantWorkbench:
 
         # สรุปค่าตั้งปัจจุบันแบบอ่านอย่างเดียว เช่น "2y · $100,000 · Risk 2.0%"
         self.settings_summary_var = tk.StringVar()
-        lbl_sum = tk.Label(top, textvariable=self.settings_summary_var, font=("Leelawadee UI", 9), fg="#8E8E93", bg="#1C1C1E")
+        lbl_sum = tk.Label(top, textvariable=self.settings_summary_var, font=("Consolas", 9), fg=t["sub_fg"], bg=t["panel"])
         lbl_sum.pack(side=tk.LEFT, padx=(8, 0))
         self.panel_labels.append(lbl_sum)
         for v in (self.period_var, self.capital_var, self.risk_var, self.force_refresh_var, self.use_ai_var):
@@ -620,141 +650,169 @@ class QuantWorkbench:
         self._refresh_settings_summary()
 
         # ==========================================
-        # ชุดปุ่มด้านขวา: แยกกลุ่ม Execution/Danger กับ Utility/Focus ให้ชัดเจน
+        # ชุดปุ่มด้านขวา: Fixed-width (Zero Reflow) + Restrained Semantic Hierarchy
         # ==========================================
-        mac_dock = tk.Frame(top, bg="#1C1C1E")
+        mac_dock = tk.Frame(top, bg=t["panel"])
         mac_dock.pack(side=tk.RIGHT, padx=(6, 0))
         self.panel_frames.append(mac_dock)
 
-        # กลุ่ม 1: Scan & Utility
+        # กลุ่ม 1: Primary CTA & Layout Utilities
         self.run_btn = mui.MacExpandingCircleButton(
             mac_dock,
-            icon="▶",
-            label="รันสแกน",
-            tooltip_desc="ดึงข้อมูลสด คำนวณ Quant Score, ML Win Prob, จัดพอร์ต v4 และจำลอง Monte Carlo 1,000 รอบ",
-            bg_color="#0A84FF",
-            parent_bg="#1C1C1E",
-            expanded_width=116,
+            icon="▸",
+            label="Run Scan",
+            tooltip_desc="ดึงข้อมูลสด คำนวณ Quant Score, ML Win Prob, จัดพอร์ต v7 และจำลอง Monte Carlo 1,000 รอบ",
+            bg_color="#2F81F7",
+            fg_color="#FFFFFF",
+            parent_bg=t["panel"],
+            show_label=True,
+            fixed_width=94,
+            circle_size=30,
             command=self.start_analysis_thread,
         )
-        self.run_btn.pack(side=tk.LEFT, padx=3)
+        self.run_btn.pack(side=tk.LEFT, padx=(0, 4))
 
-        self.pdf_btn = mui.MacExpandingCircleButton(
+        self.live_btn = mui.MacExpandingCircleButton(
             mac_dock,
-            icon="📄",
-            label="สร้าง PDF",
-            tooltip_desc="สร้างและอัปเดตไฟล์รายงาน 02-quant-phase2-report.pdf",
-            bg_color="#FF9F0A",
-            parent_bg="#1C1C1E",
-            expanded_width=112,
-            command=self.generate_pdf_report,
+            icon="○",
+            label="Live 60s",
+            tooltip_desc="เปิด/ปิดระบบดึงราคาล่าสุดอัตโนมัติทุก 60 วินาที พร้อมอัปเดต Watchlist และพอร์ตจำลองแบบ Background",
+            bg_color=t["btn_neutral"],
+            fg_color=t["btn_neutral_fg"],
+            border_color=t["border"],
+            parent_bg=t["panel"],
+            show_label=True,
+            fixed_width=92,
+            circle_size=30,
+            command=self.toggle_live_refresh,
         )
-        self.pdf_btn.pack(side=tk.LEFT, padx=3)
+        self.live_btn.pack(side=tk.LEFT, padx=(0, 4))
 
         self.theme_btn = mui.MacExpandingCircleButton(
             mac_dock,
-            icon="☀️",
+            icon="◐",
             label="Light",
-            tooltip_desc="สลับโทนสีหน้าจอระหว่าง macOS Dark และ Light",
-            bg_color="#48484A",
-            parent_bg="#1C1C1E",
-            expanded_width=96,
+            tooltip_desc="สลับโทนสีหน้าจอระหว่าง Quant Terminal Dark และ Light",
+            bg_color=t["btn_neutral"],
+            fg_color=t["btn_neutral_fg"],
+            border_color=t["border"],
+            parent_bg=t["panel"],
+            show_label=False,
+            fixed_width=32,
+            circle_size=30,
             command=self.toggle_theme,
         )
-        self.theme_btn.pack(side=tk.LEFT, padx=3)
+        self.theme_btn.pack(side=tk.LEFT, padx=2)
 
-        # Focus Mode toggles (พับ/กาง Panel ขวา และ Bottom Dock)
+        # Focus Mode toggles (Blue = เปิดอยู่, Neutral = พับอยู่)
         self.toggle_dock_btn = mui.RoundedButton(
             mac_dock,
             text="⬓ Dock",
-            bg="#2C2C2E",
-            fg="#AEAEB2",
-            parent_bg="#1C1C1E",
-            radius=12.0,
+            bg="#1F6FEB" if self.dock_panel_visible else t["btn_neutral"],
+            fg="#FFFFFF" if self.dock_panel_visible else t["btn_neutral_fg"],
+            parent_bg=t["panel"],
+            radius=8.0,
             width=62,
             height=30,
             command=self.toggle_dock_panel,
         )
-        self.toggle_dock_btn.pack(side=tk.LEFT, padx=(6, 2))
+        self.toggle_dock_btn.pack(side=tk.LEFT, padx=(4, 2))
 
         self.toggle_right_btn = mui.RoundedButton(
             mac_dock,
             text="◧ Hermes",
-            bg="#2C2C2E",
-            fg="#AEAEB2",
-            parent_bg="#1C1C1E",
-            radius=12.0,
+            bg="#1F6FEB" if self.right_panel_visible else t["btn_neutral"],
+            fg="#FFFFFF" if self.right_panel_visible else t["btn_neutral_fg"],
+            parent_bg=t["panel"],
+            radius=8.0,
             width=74,
             height=30,
             command=self.toggle_right_panel,
         )
-        self.toggle_right_btn.pack(side=tk.LEFT, padx=(2, 6))
+        self.toggle_right_btn.pack(side=tk.LEFT, padx=(2, 4))
 
         # เส้นคั่นโซน Execution / Danger
-        tk.Frame(mac_dock, bg="#38383A", width=1, height=22).pack(side=tk.LEFT, padx=6)
+        tk.Frame(mac_dock, bg=t["border"], width=1, height=20).pack(side=tk.LEFT, padx=6)
 
-        # กลุ่ม 2: Execution & Risk (แยกชัดเจนกันกดพลาด)
+        # กลุ่ม 2: Execution & Risk (สงวนสีสดเฉพาะ Danger — ปุ่มอื่นใช้ Neutral + Semantic Accent)
         self.rebal_btn = mui.MacExpandingCircleButton(
             mac_dock,
             icon="⚖",
             label="Rebalance",
             tooltip_desc="คำนวณและส่งชุดคำสั่งปรับสมดุลพอร์ตรวมอัตโนมัติ (1-Click Portfolio Rebalance)",
-            bg_color="#30D158",
-            parent_bg="#1C1C1E",
-            expanded_width=126,
+            bg_color=t["btn_neutral"],
+            fg_color="#3FB950",
+            border_color="#238636",
+            parent_bg=t["panel"],
+            show_label=True,
+            fixed_width=92,
+            circle_size=30,
             command=self.execute_portfolio_rebalance,
         )
-        self.rebal_btn.pack(side=tk.LEFT, padx=3)
+        self.rebal_btn.pack(side=tk.LEFT, padx=2)
 
         self.sniper_hub_btn = mui.MacExpandingCircleButton(
             mac_dock,
-            icon="🎯",
+            icon="◎",
             label="Auto-Sniper",
             tooltip_desc="คอมมานด์ซื้อหุ้นตัวท็อปอันดับ 1 หรือตั้งบอทเฝ้าช้อนโซน Sniper & คุม TP/SL อัตโนมัติ",
-            bg_color="#BF5AF2",
-            parent_bg="#1C1C1E",
-            expanded_width=132,
+            bg_color=t["btn_neutral"],
+            fg_color=t["btn_neutral_fg"],
+            border_color=t["border"],
+            parent_bg=t["panel"],
+            show_label=True,
+            fixed_width=98,
+            circle_size=30,
             command=self.open_auto_sniper_hub_dialog,
         )
-        self.sniper_hub_btn.pack(side=tk.LEFT, padx=3)
+        self.sniper_hub_btn.pack(side=tk.LEFT, padx=2)
 
         self.panic_btn = mui.MacExpandingCircleButton(
             mac_dock,
-            icon="🛑",
+            icon="■",
             label="Panic Stop",
             tooltip_desc="หยุดฉุกเฉิน: ปิดบอทอัตโนมัติทันที และสั่งขายล้างพอร์ตเข้าเงินสด 100%",
-            bg_color="#FF453A",
-            parent_bg="#1C1C1E",
-            expanded_width=122,
+            bg_color="#B91C1C",
+            fg_color="#FFFFFF",
+            border_color="#F85149",
+            parent_bg=t["panel"],
+            show_label=True,
+            fixed_width=92,
+            circle_size=30,
             command=self.trigger_emergency_panic,
         )
-        self.panic_btn.pack(side=tk.LEFT, padx=(3, 0))
+        self.panic_btn.pack(side=tk.LEFT, padx=(2, 0))
 
     # ==========================================
-    # 2. แถบ 4 KPI Cards ด้านบน (macOS Minimal Card — โปร่ง ชัด ไม่รก)
+    # 2. แถบ 4 KPI Cards ด้านบน (Quant Terminal Dense — Tabular Monospace Values)
     # ==========================================
     def _build_kpi_cards_banner(self):
-        wrap = tk.Frame(self.root, padx=12, pady=8)
+        wrap = tk.Frame(self.root, padx=12, pady=6)
         wrap.pack(fill=tk.X)
         self.panel_frames.append(wrap)
 
         self.kpi_vars = [
-            (tk.StringVar(value="SIGNAL"), tk.StringVar(value="เลือกหุ้นจากแถบซ้ายเพื่อดูข้อมูล")),
-            (tk.StringVar(value="ML WIN PROB"), tk.StringVar(value="ยังไม่มีข้อมูล")),
-            (tk.StringVar(value="DAILY VaR 95%"), tk.StringVar(value="ยังไม่มีข้อมูล")),
-            (tk.StringVar(value="MACRO VIX"), tk.StringVar(value="ยังไม่มีข้อมูล")),
+            (tk.StringVar(value="SIGNAL"), tk.StringVar(value="เลือกหุ้นจากแถบซ้ายหรือกด Run Scan เพื่อดูข้อมูล")),
+            (tk.StringVar(value="ML WIN PROB"), tk.StringVar(value="ยังไม่มีข้อมูลสแกน")),
+            (tk.StringVar(value="DAILY VaR 95%"), tk.StringVar(value="ยังไม่มีข้อมูลสแกน")),
+            (tk.StringVar(value="MACRO VIX"), tk.StringVar(value="ยังไม่มีข้อมูลสแกน")),
         ]
-        # ตัวเลขหลัก 1 ค่าต่อการ์ด + บรรทัดรองสั้นๆ (รายละเอียดเต็มอยู่ใน Tooltip = kpi_vars[i][1])
+        # ตัวเลขหลัก 1 ค่าต่อการ์ด (Consolas Tabular) + บรรทัดรองสั้นๆ
         self.kpi_value_vars = [tk.StringVar(value="—") for _ in range(4)]
-        self.kpi_sub_vars = [tk.StringVar(value="") for _ in range(4)]
+        self.kpi_sub_vars = [
+            tk.StringVar(value="กด Run Scan เพื่อเริ่มวิเคราะห์"),
+            tk.StringVar(value="รอผลสแกน"),
+            tk.StringVar(value="รอผลสแกน"),
+            tk.StringVar(value="รอผลสแกน"),
+        ]
         self.kpi_value_labels: list[tk.Label] = []
 
         for idx, (title_v, body_v) in enumerate(self.kpi_vars):
             card = tk.Frame(wrap, highlightthickness=1, bd=0, cursor="hand2")
-            card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
+            card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=4)
             self.card_frames.append(card)
 
-            inner = tk.Frame(card, padx=14, pady=8)
+            inner = tk.Frame(card, padx=14, pady=9)
             inner.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             self.card_frames.append(inner)
 
@@ -762,13 +820,13 @@ class QuantWorkbench:
             tl.pack(fill=tk.X)
             self.card_title_labels.append(tl)
 
-            vl = tk.Label(inner, textvariable=self.kpi_value_vars[idx], font=("Leelawadee UI", 16, "bold"), anchor="w")
-            vl.pack(fill=tk.X, pady=(1, 0))
+            vl = tk.Label(inner, textvariable=self.kpi_value_vars[idx], font=("Consolas", 15, "bold"), anchor="w")
+            vl.pack(fill=tk.X, pady=(2, 1))
             self.card_body_labels.append(vl)
             self.kpi_value_labels.append(vl)
 
-            sl = tk.Label(inner, textvariable=self.kpi_sub_vars[idx], font=("Leelawadee UI", 9), anchor="w")
-            sl.pack(fill=tk.X)
+            sl = tk.Label(inner, textvariable=self.kpi_sub_vars[idx], font=("Leelawadee UI", 8), anchor="w")
+            sl.pack(fill=tk.X, pady=(1, 0))
             self.card_title_labels.append(sl)
 
             self._bind_card_tooltip(card, title_v, body_v)
@@ -928,30 +986,33 @@ class QuantWorkbench:
         self._setup_center_chart(self.chart_box)
         self._setup_bottom_dock(self.dock_box)
 
-        # คอลัมน์ขวา: Hermes Agent 2-Way Co-Pilot + Live Terminal Log
+        # คอลัมน์ขวา: Hermes Agent 2-Way Co-Pilot + Live Terminal Log (ซ่อนเป็นค่าเริ่มต้นเพื่อขยายพื้นที่กราฟ)
         self.right_col = ttk.Frame(self.main_h_pane)
-        self.main_h_pane.add(self.right_col, weight=2)
+        if self.right_panel_visible:
+            self.main_h_pane.add(self.right_col, weight=2)
         self._setup_right_hermes_panel(self.right_col)
 
     def toggle_right_panel(self):
+        t = THEMES[self.theme_mode]
         if self.right_panel_visible:
             self.main_h_pane.forget(self.right_col)
             self.right_panel_visible = False
-            self.toggle_right_btn.config(bg="#0A84FF", fg="#FFFFFF")
+            self.toggle_right_btn.config(bg=t["btn_neutral"], fg=t["btn_neutral_fg"])
         else:
             self.main_h_pane.add(self.right_col, weight=2)
             self.right_panel_visible = True
-            self.toggle_right_btn.config(bg="#2C2C2E", fg="#AEAEB2")
+            self.toggle_right_btn.config(bg="#1F6FEB", fg="#FFFFFF")
 
     def toggle_dock_panel(self):
+        t = THEMES[self.theme_mode]
         if self.dock_panel_visible:
             self.center_v_pane.forget(self.dock_box)
             self.dock_panel_visible = False
-            self.toggle_dock_btn.config(bg="#0A84FF", fg="#FFFFFF")
+            self.toggle_dock_btn.config(bg=t["btn_neutral"], fg=t["btn_neutral_fg"])
         else:
             self.center_v_pane.add(self.dock_box, weight=2)
             self.dock_panel_visible = True
-            self.toggle_dock_btn.config(bg="#2C2C2E", fg="#AEAEB2")
+            self.toggle_dock_btn.config(bg="#1F6FEB", fg="#FFFFFF")
 
     def toggle_chart_fullscreen(self):
         if not self.chart_fullscreen:
@@ -983,48 +1044,69 @@ class QuantWorkbench:
         self.root.after(60, self.redraw_interactive_chart)
 
     # ==========================================
-    # คอลัมน์ซ้าย: Watchlist Explorer (Rounded Button)
+    # คอลัมน์ซ้าย: Watchlist Explorer (พร้อมปุ่มเลือกหุ้นด่วน + สเกลพอดีกรอบ)
     # ==========================================
     def _setup_left_watchlist(self, parent):
-        hdr = tk.Frame(parent, padx=8, pady=5)
+        t = THEMES[self.theme_mode]
+        hdr = tk.Frame(parent, padx=8, pady=6)
         hdr.pack(fill=tk.X)
         self.panel_frames.append(hdr)
 
-        lbl = tk.Label(hdr, text="📊 WATCHLIST EXPLORER", font=("Tahoma", 9, "bold"))
+        lbl = tk.Label(hdr, text="WATCHLIST", font=("Leelawadee UI", 9, "bold"))
         lbl.pack(side=tk.LEFT)
         self.panel_labels.append(lbl)
 
-        cols = ("ticker", "score", "ml_prob", "action", "opt_alloc", "close")
-        self.watch_tree = ttk.Treeview(parent, columns=cols, show="headings", height=22)
-        headers = {
-            "ticker": ("Ticker", 62),
-            "score": ("Score", 62),
-            "ml_prob": ("ML Win%", 62),
-            "action": ("Action", 88),
-            "opt_alloc": ("พอร์ตv4%", 64),
-            "close": ("Close", 75),
-        }
-        for c, (text, w) in headers.items():
-            self.watch_tree.heading(c, text=text)
-            anchor = "w" if c in ("ticker", "action") else "e"
-            self.watch_tree.column(c, width=w, anchor=anchor)
+        mui.RoundedButton(
+            hdr,
+            text="+ เลือกหุ้น",
+            bg=t["btn_neutral"],
+            fg=t["accent"],
+            parent_bg=t["panel"],
+            radius=7.0,
+            width=74,
+            height=24,
+            command=self.open_ticker_expander_popup,
+        ).pack(side=tk.RIGHT)
 
-        self.watch_tree.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
-        self.watch_tree.bind("<<TreeviewSelect>>", self._on_watchlist_select)
-
-        # ปุ่มขอบมน 14px ใต้ Watchlist
-        btn_f = tk.Frame(parent, padx=6, pady=4)
-        btn_f.pack(fill=tk.X)
+        # ปักแถบปุ่มล่างก่อนตาราง (side=BOTTOM) เพื่อป้องกันตารางดันปุ่มตกขอบเมื่อจอย่อ
+        btn_f = tk.Frame(parent, padx=6, pady=5)
+        btn_f.pack(side=tk.BOTTOM, fill=tk.X)
         self.panel_frames.append(btn_f)
         mui.RoundedButton(
             btn_f,
-            text="⚡ ส่งหุ้นนี้เข้าใบคำสั่งซื้อขายด้านล่าง",
-            bg="#0A84FF",
-            fg="white",
-            radius=14.0,
+            text="ส่งหุ้นนี้เข้า Order Ticket",
+            bg="#2F81F7",
+            fg="#FFFFFF",
+            parent_bg=t["panel"],
+            radius=8.0,
             height=28,
             command=self._send_selected_to_order_ticket,
         ).pack(fill=tk.X)
+
+        tree_wrap = tk.Frame(parent)
+        tree_wrap.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        self.panel_frames.append(tree_wrap)
+
+        cols = ("ticker", "score", "ml_prob", "action", "opt_alloc", "close")
+        self.watch_tree = ttk.Treeview(tree_wrap, columns=cols, show="headings", height=16)
+        headers = {
+            "ticker": ("Ticker", 58, 50),
+            "score": ("Score", 48, 42),
+            "ml_prob": ("Win%", 48, 42),
+            "action": ("Action", 66, 54),
+            "opt_alloc": ("พอร์ต%", 50, 44),
+            "close": ("Close", 64, 54),
+        }
+        for c, (text, w, min_w) in headers.items():
+            self.watch_tree.heading(c, text=text)
+            anchor = "w" if c in ("ticker", "action") else "e"
+            self.watch_tree.column(c, width=w, minwidth=min_w, anchor=anchor, stretch=True)
+
+        w_scroll = ttk.Scrollbar(tree_wrap, orient=tk.VERTICAL, command=self.watch_tree.yview)
+        self.watch_tree.configure(yscrollcommand=w_scroll.set)
+        w_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.watch_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.watch_tree.bind("<<TreeviewSelect>>", self._on_watchlist_select)
 
     # ==========================================
     # คอลัมน์กลางบน: Interactive Chart + macOS Segmented Control (นิ่ง ไม่กระตุก)
@@ -1055,15 +1137,15 @@ class QuantWorkbench:
             ),
             (
                 "Portfolio",
-                "4. จัดพอร์ต v4 & Correlation",
+                "4. จัดพอร์ต v7 & Correlation",
                 "portfolio_corr",
                 "สัดส่วนพอร์ตที่เหมาะสมระดับกองทุน (Risk Parity + Quant/ML Score + VIX Cap) คู่กับตารางสหสัมพันธ์ Correlation Matrix",
             ),
             (
                 "Equity",
-                "5. เทียบทุกกลยุทธ์ (Equity)",
+                "5. เทียบ 4 กลยุทธ์หลัก (Equity)",
                 "equity",
-                "เปรียบเทียบเส้นการเติบโตของพอร์ต (Equity Curve) และ Drawdown ของทั้ง 12 กลยุทธ์เพื่อหากลยุทธ์ที่ชนะตลาด",
+                "เปรียบเทียบเส้นการเติบโตของพอร์ต (Equity Curve) และ Drawdown ของ 4 กลยุทธ์หลักเพื่อหากลยุทธ์ที่ชนะตลาด",
             ),
             (
                 "ML / WFO",
@@ -1290,9 +1372,9 @@ class QuantWorkbench:
 
         self.dock_tabs_meta = [
             ("พอร์ต & คำสั่ง", "1. พอร์ตจริง & ส่งคำสั่ง Semi-Auto", 0, "จัดการพอร์ตจำลอง/พอร์ตจริง ส่งคำสั่งซื้อขาย Semi-Auto และดูประวัติคำสั่งล่าสุด"),
-            ("จัดพอร์ต & ข่าว", "2. ตารางจัดพอร์ต v4 • ML • ข่าว", 1, "ตารางสัดส่วนพอร์ตเหมาะสม v7.0, โอกาสชนะ ML Win Prob%, Walk-Forward และพาดหัวข่าวล่าสุด"),
+            ("จัดพอร์ต & ข่าว", "2. ตารางจัดพอร์ต v7 • ML • ข่าว", 1, "ตารางสัดส่วนพอร์ตเหมาะสม v7.0, โอกาสชนะ ML Win Prob%, Walk-Forward และพาดหัวข่าวล่าสุด"),
             ("ประวัติเทรด", "3. ประวัติเทรดรายไม้ (Trade Log)", 2, "รายละเอียดจุดเข้าซื้อ-ขายออกรายไม้ วันถือครอง กำไร/ขาดทุนสุทธิ และสาเหตุการขายออก"),
-            ("เทียบกลยุทธ์", "4. ตารางเทียบทุกกลยุทธ์", 3, "เปรียบเทียบผลตอบแทน Return%, MaxDD%, Sharpe, Calmar, Win Rate และ Profit Factor ของทุกกลยุทธ์"),
+            ("เทียบกลยุทธ์", "4. ตารางเทียบ 4 กลยุทธ์หลัก", 3, "เปรียบเทียบผลตอบแทน Return%, MaxDD%, Sharpe, Calmar, Win Rate และ Profit Factor ของ 4 กลยุทธ์หลัก"),
         ]
         self.active_dock_idx = 0
         dock_items = [(str(tab_i), short_t, desc_t) for short_t, _full_t, tab_i, desc_t in self.dock_tabs_meta]
@@ -1361,27 +1443,27 @@ class QuantWorkbench:
         self.panel_frames.append(top_b)
 
         cfg = bb.load_broker_config()
-        lbl1 = tk.Label(top_b, text="Broker:", font=("Tahoma", 8, "bold"))
+        lbl1 = tk.Label(top_b, text="Broker:", font=("Leelawadee UI", 9, "bold"))
         lbl1.pack(side=tk.LEFT)
         self.panel_labels.append(lbl1)
 
         self.broker_provider_var = tk.StringVar(value=cfg.get("active_broker", "local_paper"))
         b_cb = ttk.Combobox(top_b, textvariable=self.broker_provider_var, values=["local_paper", "alpaca", "binance"], width=11, state="readonly")
-        b_cb.pack(side=tk.LEFT, padx=(3, 8))
+        b_cb.pack(side=tk.LEFT, padx=(4, 10))
         b_cb.bind("<<ComboboxSelected>>", lambda e: self._on_broker_mode_change())
 
-        lbl2 = tk.Label(top_b, text="Mode:", font=("Tahoma", 8, "bold"))
+        lbl2 = tk.Label(top_b, text="Mode:", font=("Leelawadee UI", 9, "bold"))
         lbl2.pack(side=tk.LEFT)
         self.panel_labels.append(lbl2)
 
         self.broker_env_var = tk.StringVar(value=cfg.get("environment", "paper"))
         e_cb = ttk.Combobox(top_b, textvariable=self.broker_env_var, values=["paper", "live"], width=6, state="readonly")
-        e_cb.pack(side=tk.LEFT, padx=(3, 8))
+        e_cb.pack(side=tk.LEFT, padx=(4, 10))
         e_cb.bind("<<ComboboxSelected>>", lambda e: self._on_broker_mode_change())
 
-        mui.RoundedButton(top_b, text="🔄 Sync พอร์ต", bg="#0A84FF", fg="white", radius=14.0, padx=10, pady=3, command=self.sync_broker_portfolio).pack(side=tk.LEFT, padx=3)
-        mui.RoundedButton(top_b, text="⚙ API Key", bg="#3A3A3C", fg="white", radius=14.0, padx=10, pady=3, command=self.open_api_settings_dialog).pack(side=tk.LEFT, padx=3)
-        mui.RoundedButton(top_b, text="♻ รีเซ็ต Paper", bg="#2D2D2D", fg="#DCDCAA", radius=14.0, padx=10, pady=3, command=self._reset_local_paper).pack(side=tk.LEFT, padx=3)
+        mui.RoundedButton(top_b, text="Sync พอร์ต", bg="#2F81F7", fg="#FFFFFF", radius=8.0, padx=12, pady=5, command=self.sync_broker_portfolio).pack(side=tk.LEFT, padx=3)
+        mui.RoundedButton(top_b, text="API Key", bg="#1B2332", fg="#C9D1D9", radius=8.0, padx=12, pady=5, command=self.open_api_settings_dialog).pack(side=tk.LEFT, padx=3)
+        mui.RoundedButton(top_b, text="รีเซ็ต Paper", bg="#1B2332", fg="#D29922", radius=8.0, padx=12, pady=5, command=self._reset_local_paper).pack(side=tk.LEFT, padx=3)
 
         self.account_banner_var = tk.StringVar(value="กำลังโหลดพอร์ต...")
         self.account_banner_lbl = tk.Label(top_b, textvariable=self.account_banner_var, font=("Consolas", 9, "bold"), anchor="w")
@@ -1775,10 +1857,13 @@ class QuantWorkbench:
                     self.toaster.show(t_title, t_msg, kind=t_kind, duration_ms=t_dur)
                 elif kind == "all_done":
                     self.is_running = False
-                    self.run_btn.config(state=tk.NORMAL, text="▶ รันสแกน & จัดพอร์ต v4", bg="#0E639C")
+                    self.run_btn.config(state=tk.NORMAL, text="▸ Run Scan", bg="#2F81F7")
                     self._populate_all_tables()
                     self.sync_broker_portfolio()
                     self._refresh_hermes_chat_box()
+                elif kind == "live_quotes":
+                    _, quotes, ts_str = item
+                    self._apply_live_quotes(quotes, ts_str)
         except queue.Empty:
             pass
         self.root.after(80, self._process_queue)
@@ -1803,7 +1888,7 @@ class QuantWorkbench:
         use_ai = self.use_ai_var.get()
 
         self.is_running = True
-        self.run_btn.config(state=tk.DISABLED, text="⏳ กำลังรัน...", bg="#3C3C3C")
+        self.run_btn.config(state=tk.DISABLED, text="… Running", bg="#21262D")
         self.progress["value"] = 0
 
         threading.Thread(
@@ -1811,6 +1896,83 @@ class QuantWorkbench:
             args=(tickers, period, capital, risk_pct, force_ref, use_ai),
             daemon=True,
         ).start()
+
+    def toggle_live_refresh(self):
+        t = THEMES[self.theme_mode]
+        self.live_refresh_enabled = not self.live_refresh_enabled
+        if self._live_refresh_job is not None:
+            try:
+                self.root.after_cancel(self._live_refresh_job)
+            except Exception:
+                pass
+            self._live_refresh_job = None
+
+        if self.live_refresh_enabled:
+            self.live_btn.config(text="● Live 60s", bg="#0F291E", fg="#3FB950", border_color="#238636")
+            self.status_var.set(f"เปิดโหมด Live Auto-Refresh ทุก {self.live_refresh_interval_sec} วินาที — กำลังดึงราคาล่าสุด...")
+            self._toast_info("Live Auto-Refresh ON", f"อัปเดตราคาล่าสุดและยอดพอร์ตอัตโนมัติทุก {self.live_refresh_interval_sec} วินาที")
+            self._live_refresh_tick()
+        else:
+            self.live_btn.config(text="○ Live 60s", bg=t["btn_neutral"], fg=t["btn_neutral_fg"], border_color=t["border"])
+            self.status_var.set("ปิดโหมด Live Auto-Refresh แล้ว")
+
+    def _live_refresh_tick(self):
+        if not self.live_refresh_enabled:
+            return
+        if not self.is_running and not self._live_refresh_busy:
+            raw_tickers = self.tickers_var.get().replace(",", " ").split()
+            tickers = [tk_s.strip().upper() for tk_s in raw_tickers if tk_s.strip()]
+            if tickers:
+                self._live_refresh_busy = True
+                threading.Thread(target=self._fetch_live_quotes_worker, args=(tickers,), daemon=True).start()
+        self._live_refresh_job = self.root.after(self.live_refresh_interval_sec * 1000, self._live_refresh_tick)
+
+    def _fetch_live_quotes_worker(self, tickers: list[str]):
+        quotes: dict[str, float] = {}
+        try:
+            import yfinance as yf
+            for sym in tickers:
+                try:
+                    tkr = yf.Ticker(sym)
+                    px = None
+                    fi = getattr(tkr, "fast_info", None)
+                    if fi is not None:
+                        px = fi.get("lastPrice") or fi.get("regularMarketPrice")
+                    if px is None or float(px) <= 0:
+                        hist = tkr.history(period="5d")
+                        if not hist.empty and "Close" in hist.columns:
+                            px = float(hist["Close"].dropna().iloc[-1])
+                    if px is not None and float(px) > 0:
+                        quotes[sym] = float(px)
+                except Exception:
+                    continue
+        except Exception as exc:
+            self.log(f"[Live Refresh] ดึงราคาล่าสุดไม่สำเร็จ: {exc}", "err")
+        finally:
+            self._live_refresh_busy = False
+
+        if quotes:
+            self.msg_queue.put(("live_quotes", quotes, time.strftime("%H:%M:%S")))
+
+    def _apply_live_quotes(self, quotes: dict[str, float], ts_str: str):
+        for row in self.scan_rows_list:
+            sym = str(row.get("ticker", "")).upper()
+            if sym in quotes:
+                row["close"] = quotes[sym]
+
+        for iid in self.watch_tree.get_children():
+            vals = list(self.watch_tree.item(iid, "values"))
+            if vals:
+                sym = str(vals[0]).upper()
+                if sym in quotes and len(vals) >= 6:
+                    vals[5] = f"{quotes[sym]:,.2f}"
+                    self.watch_tree.item(iid, values=vals)
+
+        if self.selected_ticker and self.selected_ticker.upper() in quotes and hasattr(self, "ord_price_var"):
+            self.ord_price_var.set(f"{quotes[self.selected_ticker.upper()]:.2f}")
+
+        self.sync_broker_portfolio()
+        self.status_var.set(f"LIVE {self.live_refresh_interval_sec}s | อัปเดตราคาล่าสุด {len(quotes)} สินทรัพย์ ({ts_str})")
 
     def _run_worker(self, tickers: list[str], period: str, capital: float, risk_pct: float, force_ref: bool, use_ai: bool):
         n_total = len(tickers)
@@ -2137,11 +2299,45 @@ class QuantWorkbench:
                 spine.set_color(t["border"])
             ax.grid(True, color=t["grid"], alpha=0.55, linestyle=":")
 
+        def draw_empty_state(subtitle: str):
+            ax = self.fig.add_subplot(111)
+            ax.set_facecolor(t["ax_bg"])
+            ax.set_xticks([])
+            ax.set_yticks([])
+            for spine in ax.spines.values():
+                spine.set_color(t["border"])
+                spine.set_linewidth(0.8)
+            ax.text(
+                0.5,
+                0.56,
+                "AI QUANT WORKBENCH v7.0",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+                color=t["fg"],
+                fontsize=12,
+                fontfamily="Consolas",
+                weight="bold",
+            )
+            ax.text(
+                0.5,
+                0.45,
+                subtitle,
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+                color=t["sub_fg"],
+                fontsize=9.5,
+            )
+            self.fig.tight_layout(pad=1.6)
+            self.canvas.draw()
+
         mode = self.chart_mode
 
         # โหมด 4: Portfolio Allocation Bar + Correlation Heatmap
         if mode == "portfolio_corr":
             if not self.scan_rows_list:
+                draw_empty_state("กด [▸ Run Scan] ด้านบนเพื่อคำนวณสัดส่วนพอร์ตและ Correlation Matrix")
                 return
             gs = self.fig.add_gridspec(1, 2, width_ratios=[1.1, 1.3], wspace=0.22)
             ax_bar = self.fig.add_subplot(gs[0])
@@ -2188,6 +2384,7 @@ class QuantWorkbench:
 
         ticker = self.selected_ticker
         if ticker not in self.ticker_cache:
+            draw_empty_state("กด [▸ Run Scan] ด้านบน หรือเลือกหุ้นใน Watchlist ด้านซ้ายเพื่อโหลดกราฟและสัญญาณ")
             return
         data = self.ticker_cache[ticker]
         close = data["close"]
@@ -2498,230 +2695,428 @@ class QuantWorkbench:
         self.ord_tp2_var.set(f"{float(s.get('tp2_price', float(s['close'])*1.16)):.2f}")
 
     # ==========================================
-    # ป๊อปอัพขยายช่องใส่ Ticker + เรดาร์หุ้นน่าสนใจ (Expandable Ticker & Hot Radar Popup)
+    # หน้าต่างเลือกหุ้น & จัดการ Watchlist (Instant Stock Picker + Async Hot Radar)
     # ==========================================
     def open_ticker_expander_popup(self):
+        if getattr(self, "_ticker_dlg", None) is not None and self._ticker_dlg.winfo_exists():
+            self._ticker_dlg.lift()
+            self._ticker_dlg.focus_force()
+            return
+
+        t = THEMES[self.theme_mode]
         dlg = tk.Toplevel(self.root)
-        dlg.title("🔍 ขยายช่องแก้ไข Watchlist & เรดาร์ค้นหาหุ้นกำลังมาแรง (Hot Picks Discovery)")
-        dlg.geometry("960x640")
-        dlg.configure(bg="#1E1E1E", padx=14, pady=12)
+        dlg.title("เลือกหุ้นเข้า Watchlist — Quick Pick & Hot Radar")
+        dlg.configure(bg=t["bg"])
         dlg.transient(self.root)
         dlg.grab_set()
+        self._ticker_dlg = dlg
 
-        # ส่วนที่ 1: กล่องแก้ไขรายชื่อหุ้นขนาดใหญ่ (รองรับ Ctrl+C/V/Z/Y/X/A และคลิกขวาครบ)
-        tk.Label(
-            dlg,
-            text="📝 ช่องแก้ไข Watchlist ขนาดใหญ่ (พิมพ์คั่นด้วยเว้นวรรค หรือขึ้นบรรทัดใหม่ได้ — รองรับ Ctrl+C, V, Z, Y, X, A เต็มรูปแบบ):",
-            font=("Tahoma", 9, "bold"),
-            fg="#4EC9B0",
-            bg="#1E1E1E",
-        ).pack(anchor="w")
+        # คำนวณสเกลหน้าต่างให้พอดีจอ (ไม่ล้นจอ Laptop 1080p / HiDPI) และจัดกึ่งกลาง
+        sw = dlg.winfo_screenwidth()
+        sh = dlg.winfo_screenheight()
+        win_w = min(880, max(740, sw - 120))
+        win_h = min(600, max(500, sh - 120))
+        pos_x = max(20, (sw - win_w) // 2)
+        pos_y = max(20, (sh - win_h) // 2)
+        dlg.geometry(f"{win_w}x{win_h}+{pos_x}+{pos_y}")
+        dlg.minsize(720, 480)
 
-        big_editor = scrolledtext.ScrolledText(
-            dlg,
-            font=("Consolas", 12, "bold"),
-            height=3,
-            bg="#121212",
-            fg="#4EC9B0",
-            insertbackground="white",
-            wrap=tk.WORD,
-            undo=True,
-            autoseparators=True,
-            maxundo=-1,
-        )
-        big_editor.pack(fill=tk.X, pady=(4, 8))
-        big_editor.insert("1.0", self.tickers_var.get())
+        STOCK_GROUPS = [
+            ("Indices & Safe-Haven", ["^NDX", "^GSPC", "SPY", "QQQ", "SOXX", "GLD", "SHY", "TLT"]),
+            ("AI & Semiconductors", ["NVDA", "AMD", "AVGO", "TSM", "MU", "ARM", "SMCI", "MRVL"]),
+            ("Mega-Cap Tech", ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NFLX", "PLTR"]),
+            ("Value, Finance & Crypto", ["BRK-B", "JPM", "UNH", "LLY", "COST", "XOM", "BTC-USD", "ETH-USD"]),
+        ]
 
-        def _get_editor_tickers() -> list[str]:
-            raw = big_editor.get("1.0", tk.END).replace(",", " ").replace("\n", " ").split()
-            seen = []
-            for item in raw:
-                u = item.strip().upper()
-                if u and u not in seen:
-                    seen.append(u)
+        editor_var = tk.StringVar(value=self.tickers_var.get().strip())
+        count_var = tk.StringVar(value="")
+        chip_buttons: dict[str, tk.Button] = {}
+        syncing_flag = {"busy": False}
+
+        def _parse_tickers(raw_str: str) -> list[str]:
+            seen: list[str] = []
+            for tok in raw_str.replace(",", " ").replace("\n", " ").split():
+                sym = tok.strip().upper()
+                if sym and sym not in seen:
+                    seen.append(sym)
             return seen
 
-        def _set_editor_tickers(t_list: list[str]):
-            big_editor.delete("1.0", tk.END)
-            big_editor.insert("1.0", " ".join(t_list))
+        def _get_selected() -> list[str]:
+            return _parse_tickers(editor_var.get())
 
-        # ส่วนที่ 2: ปุ่มเลือกหมวดหมู่หุ้นฮิต (Curated Theme Presets) & บันทึก Preset
-        preset_fr = tk.Frame(dlg, bg="#252526", padx=8, pady=6)
-        preset_fr.pack(fill=tk.X, pady=(0, 8))
+        def _refresh_chip_visuals():
+            sel_set = set(_get_selected())
+            count_var.set(f"เลือกแล้ว {len(sel_set)} สินทรัพย์")
+            for sym, btn in chip_buttons.items():
+                if sym in sel_set:
+                    btn.configure(
+                        text=f"✓ {sym}",
+                        bg=t["accent"],
+                        fg="#FFFFFF",
+                        activebackground=t["accent"],
+                        activeforeground="#FFFFFF",
+                    )
+                else:
+                    btn.configure(
+                        text=sym,
+                        bg=t["btn_neutral"],
+                        fg=t["fg"],
+                        activebackground=t["seg_hover"],
+                        activeforeground=t["fg"],
+                    )
 
-        tk.Label(preset_fr, text="⭐ หมวดหมู่หุ้นเด่น (คลิกเพื่อโหลด):", font=("Tahoma", 8, "bold"), fg="#9CDCFE", bg="#252526").pack(side=tk.LEFT, padx=(0, 6))
-        presets_map = qv4.load_watchlist_presets()
+        def _set_selected(new_list: list[str]):
+            syncing_flag["busy"] = True
+            editor_var.set(" ".join(new_list))
+            syncing_flag["busy"] = False
+            _refresh_chip_visuals()
 
-        for p_name, p_tickers in list(presets_map.items())[:6]:
-            short_lbl = p_name.split("(")[0].strip()
-            tk.Button(
-                preset_fr,
-                text=short_lbl,
-                font=("Tahoma", 8, "bold"),
-                bg="#181818",
-                fg="#D4D4D4",
-                activebackground="#007ACC",
-                activeforeground="white",
-                relief=tk.FLAT,
-                padx=7,
-                pady=2,
-                cursor="hand2",
-                command=lambda pts=p_tickers: _set_editor_tickers(pts.split()),
-            ).pack(side=tk.LEFT, padx=2)
+        def _toggle_ticker(sym: str):
+            cur = _get_selected()
+            if sym in cur:
+                cur.remove(sym)
+            else:
+                cur.append(sym)
+            _set_selected(cur)
+
+        editor_var.trace_add("write", lambda *_a: None if syncing_flag["busy"] else _refresh_chip_visuals())
+
+        # =========================================================
+        # 1) ปัก Footer ด้านล่างสุดก่อนเสมอ (side=BOTTOM) ไม่ให้โดนเบียดตกขอบ
+        # =========================================================
+        footer_sep = tk.Frame(dlg, bg=t["border"], height=1)
+        footer_sep.pack(side=tk.BOTTOM, fill=tk.X)
+
+        bot_fr = tk.Frame(dlg, bg=t["panel"], padx=16, pady=10)
+        bot_fr.pack(side=tk.BOTTOM, fill=tk.X)
 
         def _save_custom_preset():
-            cur_str = " ".join(_get_editor_tickers())
+            cur_str = " ".join(_get_selected())
             if not cur_str:
+                self._toast_error("ว่างเปล่า", "กรุณาเลือกหุ้นอย่างน้อย 1 ตัวก่อนบันทึก Preset")
                 return
-            qv4.save_watchlist_preset("💾 ชุดโปรดของฉัน (My Custom)", cur_str)
-            self._toast_info("บันทึกสำเร็จ", f"บันทึกชุดหุ้นโปรดเรียบร้อย:\n{cur_str}")
+            qv4.save_watchlist_preset("ชุดโปรดของฉัน (My Custom)", cur_str)
+            self._toast_info("บันทึกสำเร็จ", f"บันทึกชุดหุ้นโปรดเรียบร้อย: {cur_str}")
 
-        tk.Button(
-            preset_fr,
-            text="💾 บันทึกชุดนี้เป็น Preset",
-            font=("Tahoma", 8, "bold"),
-            bg="#0E639C",
-            fg="white",
-            relief=tk.FLAT,
-            padx=7,
-            pady=2,
-            command=_save_custom_preset,
-        ).pack(side=tk.RIGHT, padx=2)
-
-        # ส่วนที่ 3: ตารางเรดาร์สแกนหาหุ้นน่าสนใจในช่วงนี้ (🔥 Hot Picks Radar)
-        radar_hdr = tk.Frame(dlg, bg="#1E1E1E")
-        radar_hdr.pack(fill=tk.X, pady=(2, 4))
-        tk.Label(
-            radar_hdr,
-            text="🔥 เรดาร์หุ้นและคริปโตที่น่าสนใจในช่วงนี้ (ดับเบิลคลิกที่แถวเพื่อเพิ่มเข้าช่อง Watchlist ด้านบนทันที):",
-            font=("Tahoma", 9, "bold"),
-            fg="#DCDCAA",
-            bg="#1E1E1E",
-        ).pack(side=tk.LEFT)
-
-        r_cols = ("ticker", "hot_score", "status_tag", "close", "ret_5d", "ret_20d", "rsi14", "vol_ratio")
-        radar_tree = ttk.Treeview(dlg, columns=r_cols, show="headings", height=11)
-        for c, (txt, w) in {
-            "ticker": ("Ticker", 80),
-            "hot_score": ("ความน่าสนใจ (Hot Score)", 135),
-            "status_tag": ("สถานะโมเมนตัม / จุดเข้า", 210),
-            "close": ("ราคาล่าสุด", 95),
-            "ret_5d": ("5D Return%", 95),
-            "ret_20d": ("20D Return%", 95),
-            "rsi14": ("RSI(14)", 80),
-            "vol_ratio": ("Volume พุ่ง", 95),
-        }.items():
-            radar_tree.heading(c, text=txt)
-            radar_tree.column(c, width=w, anchor="w" if c in ("ticker", "status_tag") else "e")
-
-        radar_tree.tag_configure("hot", background="#112A22", foreground="#4EC9B0")
-        radar_tree.tag_configure("good", background="#132338", foreground="#569CD6")
-        radar_tree.tag_configure("dip", background="#2B2412", foreground="#DCDCAA")
-        radar_tree.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
-
-        def _populate_radar():
-            for item in radar_tree.get_children():
-                radar_tree.delete(item)
-            rows = qv4.scan_hot_tickers_radar()
-            for r in rows:
-                sc = r["hot_score"]
-                tag = "hot" if sc >= 75 else ("good" if sc >= 62 else "dip")
-                radar_tree.insert(
-                    "",
-                    tk.END,
-                    iid=r["ticker"],
-                    values=(
-                        r["ticker"],
-                        f"★ {sc:.0f} / 100",
-                        r["status_tag"],
-                        f"{r['close']:,.2f}",
-                        f"{r['ret_5d_pct']:+.2f}%",
-                        f"{r['ret_20d_pct']:+.2f}%",
-                        f"{r['rsi14']:.1f}",
-                        f"{r['vol_ratio']:.2f}x",
-                    ),
-                    tags=(tag,),
-                )
-
-        def _add_selected_radar_to_editor(_event=None):
-            sel = radar_tree.selection()
-            if not sel:
-                return
-            cur_list = _get_editor_tickers()
-            for sym in sel:
-                if sym not in cur_list:
-                    cur_list.append(sym)
-            _set_editor_tickers(cur_list)
-
-        radar_tree.bind("<Double-1>", _add_selected_radar_to_editor)
-
-        # แถบปุ่มยืนยันด้านล่าง
-        bot_fr = tk.Frame(dlg, bg="#1E1E1E")
-        bot_fr.pack(fill=tk.X)
-
-        tk.Button(
+        mui.RoundedButton(
             bot_fr,
-            text="➕ เพิ่มหุ้นที่เลือกจากตารางเข้าช่องด้านบน",
-            font=("Tahoma", 9, "bold"),
-            bg="#007ACC",
-            fg="white",
-            relief=tk.FLAT,
-            padx=12,
-            pady=5,
-            cursor="hand2",
-            command=_add_selected_radar_to_editor,
+            text="ล้างทั้งหมด",
+            bg=t["btn_neutral"],
+            fg=t["tag_sell_fg"],
+            parent_bg=t["panel"],
+            radius=8.0,
+            width=86,
+            height=30,
+            command=lambda: _set_selected([]),
         ).pack(side=tk.LEFT, padx=(0, 6))
 
-        tk.Button(
+        mui.RoundedButton(
             bot_fr,
-            text="🔥 เลือกเฉพาะตัวท็อป (Hot Score >= 70) ทั้งหมด",
-            font=("Tahoma", 9, "bold"),
-            bg="#2D2D2D",
-            fg="#4EC9B0",
-            relief=tk.FLAT,
-            padx=10,
-            pady=5,
-            cursor="hand2",
-            command=lambda: _set_editor_tickers(
-                [radar_tree.item(i, "values")[0] for i in radar_tree.get_children() if float(str(radar_tree.item(i, "values")[1]).replace("★", "").split("/")[0]) >= 70]
-            ),
-        ).pack(side=tk.LEFT, padx=4)
+            text="บันทึกเป็นชุดโปรด",
+            bg=t["btn_neutral"],
+            fg=t["btn_neutral_fg"],
+            parent_bg=t["panel"],
+            radius=8.0,
+            width=118,
+            height=30,
+            command=_save_custom_preset,
+        ).pack(side=tk.LEFT)
 
         def _apply_and_close(run_now: bool = False):
-            final_str = " ".join(_get_editor_tickers())
-            if final_str:
-                self.tickers_var.set(final_str)
+            final_list = _get_selected()
+            if not final_list:
+                self._toast_error("ยังไม่ได้เลือกหุ้น", "กรุณาคลิกเลือกหุ้นอย่างน้อย 1 ตัว")
+                return
+            self.tickers_var.set(" ".join(final_list))
             dlg.destroy()
             if run_now:
                 self.start_analysis_thread()
 
-        tk.Button(
+        mui.RoundedButton(
             bot_fr,
-            text="✅ ตกลง & รันวิเคราะห์ทันที",
-            font=("Tahoma", 9, "bold"),
-            bg="#16825D",
-            fg="white",
-            relief=tk.FLAT,
-            padx=14,
-            pady=5,
-            cursor="hand2",
+            text="ตกลง & รันสแกนทันที",
+            bg="#238636" if self.theme_mode == "dark" else "#166534",
+            fg="#FFFFFF",
+            parent_bg=t["panel"],
+            radius=8.0,
+            width=152,
+            height=30,
             command=lambda: _apply_and_close(run_now=True),
-        ).pack(side=tk.RIGHT, padx=4)
+        ).pack(side=tk.RIGHT, padx=(6, 0))
 
-        tk.Button(
+        mui.RoundedButton(
             bot_fr,
-            text="ตกลง (บันทึกเข้าช่อง Watchlist)",
-            font=("Tahoma", 9),
-            bg="#3C3C3C",
-            fg="white",
-            relief=tk.FLAT,
-            padx=12,
-            pady=5,
+            text="บันทึกเข้า Watchlist",
+            bg=t["accent"],
+            fg="#FFFFFF",
+            parent_bg=t["panel"],
+            radius=8.0,
+            width=136,
+            height=30,
             command=lambda: _apply_and_close(run_now=False),
-        ).pack(side=tk.RIGHT, padx=4)
+        ).pack(side=tk.RIGHT)
 
-        # โหลดข้อมูลเรดาร์ทันทีเมื่อเปิดป๊อปอัพ
-        dlg.after(80, _populate_radar)
+        # =========================================================
+        # 2) ส่วนหัว: ช่องแสดง/พิมพ์หุ้นที่เลือก + ตัวนับจำนวน + สลับโหมด
+        # =========================================================
+        top_card = tk.Frame(dlg, bg=t["panel"], padx=16, pady=12)
+        top_card.pack(side=tk.TOP, fill=tk.X)
+
+        title_row = tk.Frame(top_card, bg=t["panel"])
+        title_row.pack(fill=tk.X, pady=(0, 6))
+        tk.Label(
+            title_row,
+            text="เลือกหุ้นเข้า Watchlist (คลิกปุ่มหุ้นเพื่อเลือก/ยกเลิก หรือพิมพ์ชื่อหุ้นคั่นด้วยเว้นวรรค)",
+            font=("Leelawadee UI", 10, "bold"),
+            fg=t["fg"],
+            bg=t["panel"],
+        ).pack(side=tk.LEFT)
+        tk.Label(
+            title_row,
+            textvariable=count_var,
+            font=("Leelawadee UI", 9, "bold"),
+            fg=t["accent"],
+            bg=t["panel"],
+        ).pack(side=tk.RIGHT)
+
+        entry_box = tk.Frame(top_card, bg=t["log_bg"], highlightthickness=1, highlightbackground=t["border"], padx=8, pady=5)
+        entry_box.pack(fill=tk.X, pady=(0, 8))
+        ticker_entry = tk.Entry(
+            entry_box,
+            textvariable=editor_var,
+            font=("Consolas", 11, "bold"),
+            bg=t["log_bg"],
+            fg="#3FB950" if self.theme_mode == "dark" else "#166534",
+            insertbackground=t["fg"],
+            relief=tk.FLAT,
+            bd=0,
+        )
+        ticker_entry.pack(fill=tk.X)
+
+        # แถบหมวดหมู่สำเร็จรูป (Presets) + สลับแท็บ Quick Pick / Hot Radar
+        nav_row = tk.Frame(top_card, bg=t["panel"])
+        nav_row.pack(fill=tk.X)
+
+        presets_map = qv4.load_watchlist_presets()
+        preset_wrap = tk.Frame(nav_row, bg=t["panel"])
+        preset_wrap.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        tk.Label(preset_wrap, text="ชุดสำเร็จรูป:", font=("Leelawadee UI", 9, "bold"), fg=t["sub_fg"], bg=t["panel"]).pack(side=tk.LEFT, padx=(0, 6))
+
+        for p_name, p_tickers in list(presets_map.items())[:6]:
+            clean_lbl = strip_emoji(p_name.split("(")[0]).strip()
+            tk.Button(
+                preset_wrap,
+                text=clean_lbl,
+                font=("Leelawadee UI", 8, "bold"),
+                bg=t["seg_track"],
+                fg=t["btn_neutral_fg"],
+                activebackground=t["accent"],
+                activeforeground="#FFFFFF",
+                relief=tk.FLAT,
+                bd=0,
+                padx=8,
+                pady=3,
+                cursor="hand2",
+                command=lambda pts=p_tickers: _set_selected(_parse_tickers(pts)),
+            ).pack(side=tk.LEFT, padx=2)
+
+        tk.Frame(dlg, bg=t["border"], height=1).pack(side=tk.TOP, fill=tk.X)
+
+        # =========================================================
+        # 3) พื้นที่กลาง: แท็บ [ปุ่มเลือกหุ้นด่วน] (เปิดเจอทันที) vs [เรดาร์หุ้นมาแรง]
+        # =========================================================
+        body_wrap = tk.Frame(dlg, bg=t["bg"], padx=16, pady=10)
+        body_wrap.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        mode_bar = tk.Frame(body_wrap, bg=t["bg"])
+        mode_bar.pack(fill=tk.X, pady=(0, 8))
+
+        quick_frame = tk.Frame(body_wrap, bg=t["bg"])
+        radar_frame = tk.Frame(body_wrap, bg=t["bg"])
+
+        radar_loaded = {"done": False, "loading": False}
+
+        def _switch_view(mode_key: str):
+            if mode_key == "quick":
+                radar_frame.pack_forget()
+                quick_frame.pack(fill=tk.BOTH, expand=True)
+            else:
+                quick_frame.pack_forget()
+                radar_frame.pack(fill=tk.BOTH, expand=True)
+                if not radar_loaded["done"] and not radar_loaded["loading"]:
+                    _load_radar_async()
+
+        view_seg = mui.MacSegmentedControl(
+            mode_bar,
+            items=[
+                ("quick", "ปุ่มเลือกหุ้นด่วน (32 ตัวหลัก)", "คลิกปุ่มชื่อหุ้นเพื่อเลือกหรือเอาออกได้ทันที"),
+                ("radar", "เรดาร์สแกนหุ้นมาแรง (Hot Radar)", "สแกนคะแนนโมเมนตัมและ RSI ล่าสุดแบบไม่ค้างหน้าจอ"),
+            ],
+            active_key="quick",
+            command=_switch_view,
+            parent_bg=t["bg"],
+            track_bg=t["seg_track"],
+            active_bg=t["accent"],
+            hover_bg=t["seg_hover"],
+            fg=t["sub_fg"],
+            active_fg="#FFFFFF",
+            border_color=t["border"],
+            height=30,
+            font=("Leelawadee UI", 9, "bold"),
+        )
+        view_seg.pack(side=tk.LEFT)
+
+        # --- มุมมองที่ 1: ปุ่มเลือกหุ้นรายตัว (เปิดปุ๊บเจอเลย!) ---
+        for grp_title, syms in STOCK_GROUPS:
+            grp_card = tk.Frame(quick_frame, bg=t["card"], highlightthickness=1, highlightbackground=t["card_border"], padx=12, pady=8)
+            grp_card.pack(fill=tk.X, pady=4)
+
+            hdr_g = tk.Frame(grp_card, bg=t["card"])
+            hdr_g.pack(fill=tk.X, pady=(0, 5))
+            tk.Label(hdr_g, text=grp_title, font=("Leelawadee UI", 9, "bold"), fg=t["sub_fg"], bg=t["card"]).pack(side=tk.LEFT)
+            tk.Button(
+                hdr_g,
+                text="+ เลือกทั้งหมวด",
+                font=("Leelawadee UI", 8, "bold"),
+                bg=t["card"],
+                fg=t["accent"],
+                activebackground=t["seg_hover"],
+                activeforeground=t["accent"],
+                relief=tk.FLAT,
+                bd=0,
+                cursor="hand2",
+                command=lambda grp_s=syms: _set_selected(_get_selected() + [s for s in grp_s if s not in _get_selected()]),
+            ).pack(side=tk.RIGHT)
+
+            grid_f = tk.Frame(grp_card, bg=t["card"])
+            grid_f.pack(fill=tk.X)
+            for col_i in range(8):
+                grid_f.columnconfigure(col_i, weight=1, uniform="stock_chip")
+
+            for idx, sym in enumerate(syms):
+                b = tk.Button(
+                    grid_f,
+                    text=sym,
+                    font=("Consolas", 10, "bold"),
+                    bg=t["btn_neutral"],
+                    fg=t["fg"],
+                    relief=tk.FLAT,
+                    bd=0,
+                    pady=6,
+                    cursor="hand2",
+                    command=lambda s=sym: _toggle_ticker(s),
+                )
+                b.grid(row=idx // 8, column=idx % 8, sticky="ew", padx=3, pady=2)
+                chip_buttons[sym] = b
+
+        # --- มุมมองที่ 2: ตาราง Hot Radar (โหลดแบบ Background Thread ไม่ทำหน้าต่างค้าง) ---
+        radar_top = tk.Frame(radar_frame, bg=t["bg"])
+        radar_top.pack(fill=tk.X, pady=(0, 6))
+        radar_status_var = tk.StringVar(value="คลิกแถวในตารางเพื่อสลับเลือก/เอาหุ้นออก (กำลังเตรียมเรดาร์...)")
+        tk.Label(radar_top, textvariable=radar_status_var, font=("Leelawadee UI", 9), fg=t["sub_fg"], bg=t["bg"]).pack(side=tk.LEFT)
+
+        mui.RoundedButton(
+            radar_top,
+            text="เลือกตัวท็อป (Score >= 70)",
+            bg=t["btn_neutral"],
+            fg=t["tag_buy_fg"],
+            parent_bg=t["bg"],
+            radius=8.0,
+            width=156,
+            height=26,
+            command=lambda: _set_selected(
+                _get_selected()
+                + [
+                    radar_tree.item(i, "values")[0]
+                    for i in radar_tree.get_children()
+                    if float(str(radar_tree.item(i, "values")[1]).split("/")[0].strip()) >= 70
+                    and radar_tree.item(i, "values")[0] not in _get_selected()
+                ]
+            ),
+        ).pack(side=tk.RIGHT)
+
+        radar_tree_wrap = tk.Frame(radar_frame, bg=t["card"], highlightthickness=1, highlightbackground=t["border"])
+        radar_tree_wrap.pack(fill=tk.BOTH, expand=True)
+
+        r_cols = ("ticker", "hot_score", "status_tag", "close", "ret_5d", "ret_20d", "rsi14", "vol_ratio")
+        radar_tree = ttk.Treeview(radar_tree_wrap, columns=r_cols, show="headings", height=8)
+        for c, (txt, w) in {
+            "ticker": ("Ticker", 72),
+            "hot_score": ("Hot Score", 90),
+            "status_tag": ("สถานะโมเมนตัม", 190),
+            "close": ("Close", 82),
+            "ret_5d": ("5D%", 72),
+            "ret_20d": ("20D%", 72),
+            "rsi14": ("RSI(14)", 66),
+            "vol_ratio": ("Vol Ratio", 74),
+        }.items():
+            radar_tree.heading(c, text=txt)
+            radar_tree.column(c, width=w, anchor="w" if c in ("ticker", "status_tag") else "e", stretch=True)
+
+        radar_tree.tag_configure("hot", background=t["tag_buy_bg"], foreground=t["tag_buy_fg"])
+        radar_tree.tag_configure("good", background=t["tag_hold_bg"], foreground=t["tag_hold_fg"])
+        radar_tree.tag_configure("dip", background=t["tag_wait_bg"], foreground=t["tag_wait_fg"])
+
+        r_scroll = ttk.Scrollbar(radar_tree_wrap, orient=tk.VERTICAL, command=radar_tree.yview)
+        radar_tree.configure(yscrollcommand=r_scroll.set)
+        r_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        radar_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        def _on_radar_row_click(_event=None):
+            sel = radar_tree.selection()
+            if sel:
+                _toggle_ticker(sel[0])
+
+        radar_tree.bind("<Double-1>", _on_radar_row_click)
+        radar_tree.bind("<Return>", _on_radar_row_click)
+
+        def _load_radar_async():
+            radar_loaded["loading"] = True
+            radar_status_var.set("กำลังสแกนโมเมนตัมหุ้นเด่นในพื้นหลัง...")
+
+            def _worker():
+                try:
+                    rows = qv4.scan_hot_tickers_radar()
+                except Exception:
+                    rows = []
+
+                def _apply_rows():
+                    radar_loaded["loading"] = False
+                    radar_loaded["done"] = True
+                    if not dlg.winfo_exists():
+                        return
+                    for item in radar_tree.get_children():
+                        radar_tree.delete(item)
+                    for r in rows:
+                        sc = float(r.get("hot_score", 50))
+                        tag = "hot" if sc >= 75 else ("good" if sc >= 62 else "dip")
+                        radar_tree.insert(
+                            "",
+                            tk.END,
+                            iid=r["ticker"],
+                            values=(
+                                r["ticker"],
+                                f"{sc:.0f} / 100",
+                                strip_emoji(str(r.get("status_tag", ""))),
+                                f"{r['close']:,.2f}",
+                                f"{r['ret_5d_pct']:+.2f}%",
+                                f"{r['ret_20d_pct']:+.2f}%",
+                                f"{r['rsi14']:.1f}",
+                                f"{r['vol_ratio']:.2f}x",
+                            ),
+                            tags=(tag,),
+                        )
+                    radar_status_var.set(f"พบ {len(rows)} สินทรัพย์ — ดับเบิลคลิกแถวเพื่อเลือก/เอาออก")
+
+                self.root.after(0, _apply_rows)
+
+            threading.Thread(target=_worker, daemon=True).start()
+
+        # เปิดมาเจอหน้าปุ่มเลือกหุ้นด่วนทันที (0ms ไม่ค้าง)
+        _refresh_chip_visuals()
+        _switch_view("quick")
+        dlg.bind("<Escape>", lambda _e: dlg.destroy())
+        ticker_entry.focus_set()
 
     # ==========================================
     # ระบบสั่งซื้อขายอัตโนมัติ 3 โหมด (Instant Best-Pick / Smart Sniper / Auto-Guardian)
@@ -3323,8 +3718,7 @@ class QuantWorkbench:
                 self.apply_theme()
             if isinstance(st.get("drawings"), dict):
                 self.drawing_mgr.drawings = st["drawings"]
-            if st.get("right_panel_visible") is False and self.right_panel_visible:
-                self.toggle_right_panel()
+            # คงค่า Hermes Panel ให้ปิดตอนเปิดแอปเสมอ (กดปุ่ม ◧ Hermes เพื่อเปิดเมื่อต้องการ)
             if st.get("dock_panel_visible") is False and self.dock_panel_visible:
                 self.toggle_dock_panel()
         except Exception:
@@ -3344,6 +3738,13 @@ class QuantWorkbench:
             pass
 
     def _on_close(self):
+        self.live_refresh_enabled = False
+        if self._live_refresh_job is not None:
+            try:
+                self.root.after_cancel(self._live_refresh_job)
+            except Exception:
+                pass
+            self._live_refresh_job = None
         self._save_ui_state()
         self.root.destroy()
 
