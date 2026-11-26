@@ -69,7 +69,7 @@ flowchart TD
 
 ---
 
-## 🛡️ 2. มาตรฐานการคุมความเสี่ยงระดับ Production (v7.0 Final)
+## 🛡️ 2. มาตรฐานการคุมความเสี่ยง 
 - **Zero Look-Ahead & Zero Selection Bias:** Shift สัญญาณ 1 แท่ง (`shift(1)`), Clip น้ำหนัก `[0.0, 1.0]`, คัดผู้ชนะเฉพาะช่วง In-Sample (70% แรก) และ Rolling Walk-Forward (`252d Train -> 63d OOS`)
 - **Realistic Cost Modeling:** หัก Commission (`0.1%`) + Dynamic Volatility-Adjusted Slippage (`ATR/Volume` & `5 bps` Limit Fill)
 - **Portfolio-Level Circuit Breaker:**
@@ -80,8 +80,8 @@ flowchart TD
 - 
 ---
 
-## 📊 3. ผลทดสอบจริงที่ยืนยันแล้ว (Verified Evidence)
-
+## 📊 3. ผลทดสอบจริง (Verified Evidence)
+**//ใช้back-test ที่เขียนขึ้นเองในการเทสระบบ เเละไม่มี look-ahead-bias //**
 ### 3.1 ผลทดสอบ 5 ปี (Cross-Sectional 30 หุ้น + Dual-Momentum Safe-Haven `GLD`/`SHY`)
 *(ช่วง `2022-05-31` ถึง `2026-11-20` = `1,125` วันทำการ, ข้ามตลาดหมีปี 2022, Rebalance ทุก 21 วัน, Shift 1 Bar ไร้ Look-ahead Bias)*
 
