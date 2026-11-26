@@ -60,7 +60,7 @@ flowchart TD
     TEST -. "Verifies" .-> BE
     TEST -. "Verifies" .-> Core
     TEST -. "Verifies" .-> Bridge
-
+```
 ### 4 กลยุทธ์แกนหลักที่ผ่านการคัดกรอง (Pruned from 13 $\rightarrow$ 4 Cores)
 1. **`buy_hold`**: Benchmark มาตรฐาน
 2. **`trend_atr_vol`**: Trend-Following + ATR Chandelier Trailing Stop (`3.2x`) + Volatility-Targeted Sizing
@@ -105,8 +105,6 @@ test_08_circuit_breaker_and_smart_limit_order ... ok
 test_09_webhook_alert_graceful_skip ... ok
 ----------------------------------------------------------------------
 Ran 9 tests in 0.366s — OK
-```
-
 ---
 
 ## 🚀 4. คู่มือรันและทดสอบด้วยตัวเอง (Self-Test Commands)
