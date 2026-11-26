@@ -12,40 +12,40 @@
 
 ```mermaid
 flowchart TD
-    subgraph Entry["🚀 Execution Entrypoints"]
+    subgraph Entry["Entrypoints"]
         direction TB
-        GUI["quant_gui.py<br/>VS Code Dark Workbench<br/>+ 6 Actionable Chart Modes"]
+        GUI["quant_gui.py<br/>Quant Terminal Workbench<br/>6 Chart Modes & Live 60s Polling"]
         CRON["daily_runner.py<br/>Headless Daily Cron /<br/>Task Scheduler Runner"]
         BE["backtest_engine.py<br/>CLI Backtest, 30-Stock Universe<br/>Scan & WFO Gate"]
         GUI --> BE
         CRON --> BE
     end
-```
-    subgraph QA["🧪 Automated Tests (8/8 OK)"]
-        TEST["tests/test_quant_v5.py<br/>Synthetic OHLCV, Metrics,<br/>XAI & Risk Gate Validation"]
-    end
 
-    subgraph Bridge["🏛️ Execution & Co-Pilot Bridge"]
-        HERMES["hermes_bridge.py<br/>Hermes Agent &<br/>home-repo Memory Sync"]
-        BROKER["broker_bridge.py<br/>Portfolio Circuit Breaker (-5%/-8%),<br/>Smart Limit Orders"]
-    end
-
-    subgraph Core["📐 Quantitative & Validation Core"]
+    subgraph Core["Quant & Validation Core"]
         QV4["quant_v4_modules.py<br/>Price Cache, ML Meta-Model<br/>& Risk Parity"]
         QV5["quant_v5_institutional.py<br/>4 Core Strategies, Cross-Sectional<br/>Scanner, Rolling WFO & Slippage"]
     end
 
-    subgraph Data["🗄️ Data Storage & External APIs"]
+    subgraph Bridge["Execution & Agent Bridge"]
+        BROKER["broker_bridge.py<br/>Circuit Breaker (-5% / -8%)<br/>& Smart Limit Orders"]
+        HERMES["hermes_bridge.py<br/>Hermes Co-Pilot &<br/>Memory Sync"]
+    end
+
+    subgraph Data["Storage & External APIs"]
         direction LR
-        EXT_BROKER(["Alpaca / Local Paper<br/>Execution API"])
-        DB[("SQLite (runs.db)<br/>Price Cache, Runs & Audit Log")]
+        EXT_BROKER(["Alpaca / Binance /<br/>Local Paper API"])
+        DB[("SQLite (runs.db)<br/>Price Cache, Positions & Audit Log")]
         YF(["Yahoo Finance API<br/>(yfinance OHLCV)"])
     end
 
-    %% Execution Flow
+    subgraph QA["Test Suite (9/9 Passing)"]
+        TEST["tests/test_quant_v5.py<br/>Synthetic OHLCV, Metrics,<br/>WFO & Circuit Breaker"]
+    end
+
+    %% Execution & Signal Flow
     GUI --> BROKER
+    GUI --> HERMES
     CRON --> BROKER
-    BE --> HERMES
     BE --> QV4
     BE --> QV5
 
@@ -56,10 +56,10 @@ flowchart TD
     QV4 <--> DB
     QV4 <--> YF
 
-    %% Automated Test Verification (Dashed)
-    TEST -. "Verifies" .-> BE
-    TEST -. "Verifies" .-> Core
-    TEST -. "Verifies" .-> Bridge
+    %% Automated Test Verification
+    TEST -. "verifies" .-> BE
+    TEST -. "verifies" .-> Core
+    TEST -. "verifies" .-> Bridge
 ```
 ### 4 กลยุทธ์แกนหลักที่ผ่านการคัดกรอง (Pruned from 13 $\rightarrow$ 4 Cores)
 1. **`buy_hold`**: Benchmark มาตรฐาน
@@ -105,6 +105,8 @@ test_08_circuit_breaker_and_smart_limit_order ... ok
 test_09_webhook_alert_graceful_skip ... ok
 ----------------------------------------------------------------------
 Ran 9 tests in 0.366s — OK
+```
+
 ---
 
 ## 🚀 4. คู่มือรันและทดสอบด้วยตัวเอง (Self-Test Commands)
@@ -114,7 +116,7 @@ Ran 9 tests in 0.366s — OK
 pip install -r requirements.txt
 ```
 
-### 2) รันชุด Unit Test ทั้งหมด (`8/8 Tests`)
+### 2) รันชุด Unit Test ทั้งหมด (`9/9 Tests`)
 ```powershell
 python -m unittest discover -s tests -p "test_*.py" -v
 ```
