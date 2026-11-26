@@ -12,38 +12,54 @@
 
 ```mermaid
 flowchart TD
-    subgraph Entrypoints["🚀 Execution Entrypoints"]
-        GUI["quant_gui.py\n(VS Code Dark Workbench + 6 Actionable Chart Modes)"]
-        CLI["backtest_engine.py\n(CLI Backtest, 30-Stock Universe Scan & WFO Gate)"]
-        HEADLESS["daily_runner.py\n(Headless Daily Cron / Task Scheduler Runner)"]
-    end
-
-    subgraph Core_Quant["📐 Quantitative & Validation Core"]
-        QV5["quant_v5_institutional.py\n(4 Core Strategies, Cross-Sectional Scanner, Rolling WFO Gate & Slippage)"]
-        QV4["quant_v4_modules.py\n(SQLite Price Cache runs.db, ML Meta-Model & Risk Parity)"]
-    end
-
-    subgraph Broker_Agent["🏦 Execution & Co-Pilot Bridge"]
-        BB["broker_bridge.py\n(Portfolio Circuit Breaker -5%/-8%, Smart Limit Orders, Alpaca & Local Paper)"]
-        HB["hermes_bridge.py\n(Hermes Agent & home-repo Memory Sync)"]
+    subgraph Entry["🚀 Execution Entrypoints"]
+        direction TB
+        GUI["quant_gui.py<br/>VS Code Dark Workbench<br/>+ 6 Actionable Chart Modes"]
+        CRON["daily_runner.py<br/>Headless Daily Cron /<br/>Task Scheduler Runner"]
+        BE["backtest_engine.py<br/>CLI Backtest, 30-Stock Universe<br/>Scan & WFO Gate"]
+        GUI --> BE
+        CRON --> BE
     end
 
     subgraph QA["🧪 Automated Tests (8/8 OK)"]
-        TEST["tests/test_quant_v5.py"]
+        TEST["tests/test_quant_v5.py<br/>Synthetic OHLCV, Metrics,<br/>XAI & Risk Gate Validation"]
     end
 
-    GUI --> CLI
-    CLI --> QV5
-    CLI --> QV4
-    HEADLESS --> CLI
-    HEADLESS --> QV5
-    HEADLESS --> BB
-    GUI --> BB
-    GUI --> HB
-    TEST --> CLI
-    TEST --> QV5
-    TEST --> BB
-```
+    subgraph Bridge["🏛️ Execution & Co-Pilot Bridge"]
+        HERMES["hermes_bridge.py<br/>Hermes Agent &<br/>home-repo Memory Sync"]
+        BROKER["broker_bridge.py<br/>Portfolio Circuit Breaker (-5%/-8%),<br/>Smart Limit Orders"]
+    end
+
+    subgraph Core["📐 Quantitative & Validation Core"]
+        QV4["quant_v4_modules.py<br/>Price Cache, ML Meta-Model<br/>& Risk Parity"]
+        QV5["quant_v5_institutional.py<br/>4 Core Strategies, Cross-Sectional<br/>Scanner, Rolling WFO & Slippage"]
+    end
+
+    subgraph Data["🗄️ Data Storage & External APIs"]
+        direction LR
+        EXT_BROKER(["Alpaca / Local Paper<br/>Execution API"])
+        DB[("SQLite (runs.db)<br/>Price Cache, Runs & Audit Log")]
+        YF(["Yahoo Finance API<br/>(yfinance OHLCV)"])
+    end
+
+    %% Execution Flow
+    GUI --> BROKER
+    CRON --> BROKER
+    BE --> HERMES
+    BE --> QV4
+    BE --> QV5
+
+    %% Data & External Services
+    BROKER <--> EXT_BROKER
+    BROKER <--> DB
+    BE --> DB
+    QV4 <--> DB
+    QV4 <--> YF
+
+    %% Automated Test Verification (Dashed)
+    TEST -. "Verifies" .-> BE
+    TEST -. "Verifies" .-> Core
+    TEST -. "Verifies" .-> Bridge
 
 ### 4 กลยุทธ์แกนหลักที่ผ่านการคัดกรอง (Pruned from 13 $\rightarrow$ 4 Cores)
 1. **`buy_hold`**: Benchmark มาตรฐาน
