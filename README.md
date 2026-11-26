@@ -20,7 +20,7 @@ flowchart TD
         GUI --> BE
         CRON --> BE
     end
-
+```
     subgraph QA["🧪 Automated Tests (8/8 OK)"]
         TEST["tests/test_quant_v5.py<br/>Synthetic OHLCV, Metrics,<br/>XAI & Risk Gate Validation"]
     end
@@ -77,7 +77,7 @@ flowchart TD
   - Live Drawdown แตะ **`-8.0%`** $\rightarrow$ ล็อกห้ามเปิดไม้ซื้อใหม่ (**`HALT_NEW_BUYS`**) ยอมให้ขายออกเท่านั้น
 - **Smart Limit Execution:** ส่งคำสั่งเข้า Alpaca / Local Paper เป็น **`Limit Order`** (`±0.2%` Buffer) แทนการเคาะ Market Order มืดบอด
 - **Live Capital Readiness Gate:** ติดตามความคืบหน้า Paper Trade อัตโนมัติ (ต้องครบ **30 ไม้ปิดสถานะ**, `Live DD > -10%`, และ `Paper Return >= 0%` ก่อนย้ายสู่เงินจริง)
-'''
+- 
 ---
 
 ## 📊 3. ผลทดสอบจริงที่ยืนยันแล้ว (Verified Evidence)
