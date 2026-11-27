@@ -160,5 +160,5 @@ python quant_gui.py
 
 ### 6) ตัวอย่างตั้งเวลารันอัตโนมัติวันละครั้งบน AWS EC2 Ubuntu (Cron)
 ```bash
-35 14 * * 1-5 cd /home/ubuntu/mini-project-quant01 && /usr/bin/python3 daily_runner.py --execute >> logs/cron.log 2>&1
+35 14 * * 1-5 cd /path/to/mini-project-quant && /usr/bin/python3 daily_runner.py --execute >> logs/cron.log 2>&1
 ```

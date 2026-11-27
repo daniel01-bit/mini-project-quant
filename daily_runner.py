@@ -16,7 +16,7 @@ daily_runner.py — Headless Production Daily Execution Script (AI Quant v7.0 Fi
   python daily_runner.py --execute --top-n 5
 
 ตัวอย่างตั้ง Cron บน AWS EC2 Ubuntu (รัน จ.-ศ. เวลา 21:35 น. ตามเวลาไทย / หลังตลาดสหรัฐเปิด 5 นาที):
-  35 14 * * 1-5 cd /home/ubuntu/mini-project-quant01 && /usr/bin/python3 daily_runner.py --execute >> logs/cron.log 2>&1
+  35 14 * * 1-5 cd /path/to/mini-project-quant && /usr/bin/python3 daily_runner.py --execute >> logs/cron.log 2>&1
 """
 
 import argparse
